@@ -1,80 +1,91 @@
 #include "contract.h"
 #include "constants.h"
 #include "errors.h"
+#include "fact_command.h"
 #include "report.h"
-#include <dirent.h>
-#include <errno.h>
-#include <p101_c/p101_ctype.h>
 #include <p101_c/p101_stdio.h>
+#include <p101_c/p101_stdlib.h>
 #include <p101_c/p101_string.h>
-#include <p101_posix/p101_dirent.h>
-#include <p101_posix/sys/p101_stat.h>
+#include <p101_c_facts/facts.h>
+#include <p101_posix/p101_stdio.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdlib.h>
-#include <sys/stat.h>
 
-struct function_state
+enum contract_event_kind
 {
-    bool active;
-    int  brace_depth;
-    bool has_env;
-    bool has_err;
-    bool env_reported;
-    bool err_reported;
-    char name[FUNCTION_NAME_LEN];
+    CONTRACT_EVENT_CALL = 0,
+    CONTRACT_EVENT_ENV_USE,
+    CONTRACT_EVENT_ERROR_USE,
+    CONTRACT_EVENT_TRACE_USE,
+    CONTRACT_EVENT_ERROR_CHECK
 };
 
-static int  scan_path(const struct p101_env *env, struct p101_error *err, const char *path, struct contract_report *report);
-static int  scan_directory(const struct p101_env *env, struct p101_error *err, const char *path, struct contract_report *report);
-static int  scan_file(const struct p101_env *env, struct p101_error *err, const char *path, struct contract_report *report);
-static void process_line(const struct p101_env *env, struct p101_error *err, struct contract_report *report, struct function_state *state, const char *path, const char *line, size_t line_number, char *pending_header, size_t pending_header_size);
-static void process_active_line(const struct p101_env *env, struct p101_error *err, struct contract_report *report, struct function_state *state, const char *path, const char *line, size_t line_number);
-static void start_function_if_present(const struct p101_env *env, struct function_state *state, const char *header, const char *line);
-static void append_header_line(const struct p101_env *env, struct p101_error *err, char *pending_header, size_t pending_header_size, const char *line);
-static void reset_function_state(const struct p101_env *env, struct function_state *state);
-static bool is_source_file(const struct p101_env *env, const char *path);
-static bool should_skip_dir(const struct p101_env *env, const char *name);
-static bool is_dot_entry(const struct p101_env *env, const char *name);
-static bool line_is_preprocessor(const struct p101_env *env, const char *line);
-static bool line_starts_header(const struct p101_env *env, const char *line);
-static bool line_ends_declaration(const struct p101_env *env, const char *line);
-static bool contains_identifier(const struct p101_env *env, const char *text, const char *needle);
-static bool contains_any_identifier(const struct p101_env *env, const char *text, const char *const needles[]);
-static bool contains_p101_call_needing_env(const struct p101_env *env, const char *line);
-static bool contains_p101_error_contract_use(const struct p101_env *env, const char *line);
-static bool parse_function_name(const struct p101_env *env, const char *header, char *name, size_t name_size);
-static bool is_keyword_function_name(const struct p101_env *env, const char *name);
-static bool is_identifier_char(const struct p101_env *env, int ch);
-static int  brace_delta(const char *line);
+struct contract_function
+{
+    char   path[CONTRACT_PATH_LEN];
+    char   name[FUNCTION_NAME_LEN];
+    size_t line;
+    bool   has_env_contract;
+    bool   has_error_contract;
+    bool   env_reported;
+    bool   error_reported;
+};
+
+struct contract_event
+{
+    enum contract_event_kind kind;
+    char                     path[CONTRACT_PATH_LEN];
+    char                     name[FUNCTION_NAME_LEN];
+    size_t                   line;
+};
+
+struct contract_model
+{
+    struct contract_function functions[MAX_FACT_FUNCTIONS];
+    struct contract_event    events[MAX_FACT_EVENTS];
+    size_t                   function_count;
+    size_t                   event_count;
+    size_t                   files_scanned;
+};
+
+static void   load_facts(const struct p101_env *env, struct p101_error *err, const struct arguments *args, struct contract_model *model);
+static void   apply_fact(const struct p101_env *env, struct p101_error *err, struct contract_model *model, const struct p101_c_fact *fact);
+static void   add_function(const struct p101_env *env, struct p101_error *err, struct contract_model *model, const struct p101_c_fact *fact);
+static void   add_event(const struct p101_env *env, struct p101_error *err, struct contract_model *model, enum contract_event_kind kind, const struct p101_c_fact *fact);
+static void   set_function_contract(const struct p101_env *env, struct contract_model *model, const struct p101_c_fact *fact, bool is_env);
+static void   analyze_model(const struct p101_env *env, struct p101_error *err, const struct contract_model *model, struct contract_report *report);
+static size_t next_function_line(const struct p101_env *env, const struct contract_model *model, const struct contract_function *function);
+static bool   event_is_in_function(const struct p101_env *env, const struct contract_event *event, const struct contract_function *function, size_t end_line);
+static bool   visible_env_before_event(const struct p101_env *env, const struct contract_model *model, const struct contract_function *function, const struct contract_event *event, size_t end_line);
+static bool   visible_error_before_event(const struct p101_env *env, const struct contract_model *model, const struct contract_function *function, const struct contract_event *event, size_t end_line);
+static bool   call_needs_env(const struct p101_env *env, const char *name);
+static bool   call_needs_error(const struct p101_env *env, const char *name);
+static bool   name_is_in_list(const struct p101_env *env, const char *name, const char *const names[]);
+static bool   fact_line_is_complete(const struct p101_env *env, struct p101_error *err, FILE *stream, char *line);
+static void   copy_text(const struct p101_env *env, char *dst, size_t dst_size, const char *src);
 
 int p101_error_contract_run(const struct p101_env *env, struct p101_error *err, const struct arguments *args)
 {
+    struct contract_model *model;
     struct contract_report report;
     int                    ret_val;
-    const char            *default_path;
 
     P101_TRACE(env);
-    ret_val      = EXIT_SUCCESS;
-    default_path = DEFAULT_SOURCE_PATH;
-    p101_error_contract_report_begin(env, err, &report, args);
-
-    if(args->path_count == 0)
+    ret_val = EXIT_TROUBLE;
+    model   = (struct contract_model *)p101_calloc(env, err, 1U, sizeof(*model));
+    if(model == NULL || p101_error_has_error(err))
     {
-        ret_val = scan_path(env, err, default_path, &report);
+        goto done;
     }
-    else
-    {
-        int i;
 
-        for(i = 0; i < args->path_count && p101_error_has_no_error(err); i++)
-        {
-            if(scan_path(env, err, args->paths[i], &report) == EXIT_TROUBLE)
-            {
-                ret_val = EXIT_TROUBLE;
-                break;
-            }
-        }
+    p101_error_contract_report_begin(env, err, &report, args);
+    load_facts(env, err, args, model);
+
+    if(p101_error_has_no_error(err))
+    {
+        report.files_scanned = model->files_scanned;
+        analyze_model(env, err, model, &report);
     }
 
     if(p101_error_has_no_error(err))
@@ -82,395 +93,310 @@ int p101_error_contract_run(const struct p101_env *env, struct p101_error *err, 
         p101_error_contract_report_end(env, err, &report);
     }
 
-    if(p101_error_has_error(err) || ret_val == EXIT_TROUBLE)
+    if(p101_error_has_error(err))
     {
-        return EXIT_TROUBLE;
+        goto done;
     }
 
-    return (report.findings == 0U) ? EXIT_SUCCESS : EXIT_FINDINGS;
+    ret_val = (report.findings == 0U) ? EXIT_SUCCESS : EXIT_FINDINGS;
+
+done:
+    p101_free(env, model);
+    return ret_val;
 }
 
-static int scan_path(const struct p101_env *env, struct p101_error *err, const char *path, struct contract_report *report)    // NOLINT(misc-no-recursion)
+static void load_facts(const struct p101_env *env, struct p101_error *err, const struct arguments *args, struct contract_model *model)
 {
-    struct stat st;
+    FILE *stream;
+    char  command[MAX_COMMAND];
+    char  line[READ_BUF_LEN];
 
     P101_TRACE(env);
-    if(p101_lstat(env, err, path, &st) != 0)
+    stream = NULL;
+    p101_error_contract_build_fact_command(env, err, command, sizeof(command), args);
+    if(p101_error_has_error(err))
     {
-        return EXIT_TROUBLE;
+        goto done;
     }
 
-    if(S_ISDIR(st.st_mode))
+    if(args->verbose)
     {
-        return scan_directory(env, err, path, report);
-    }
-
-    if(S_ISREG(st.st_mode) && is_source_file(env, path))
-    {
-        return scan_file(env, err, path, report);
-    }
-
-    return EXIT_SUCCESS;
-}
-
-static int scan_directory(const struct p101_env *env, struct p101_error *err, const char *path, struct contract_report *report)    // NOLINT(misc-no-recursion)
-{
-    DIR *dir;
-    int  ret_val;
-
-    P101_TRACE(env);
-    ret_val = EXIT_SUCCESS;
-    dir     = p101_opendir(env, err, path);
-
-    if(dir == NULL)
-    {
-        return EXIT_TROUBLE;
-    }
-
-    for(;;)
-    {
-        struct dirent *entry;
-        char           child[CONTRACT_PATH_LEN];
-        int            written;
-
-        errno = 0;
-        entry = readdir(dir);    // NOLINT(concurrency-mt-unsafe): shared directory stream is not used across threads.
-
-        if(entry == NULL)
+        p101_fprintf(env, err, stderr, "p101-error-contract: fact command: %s\n", command);
+        if(p101_error_has_error(err))
         {
-            if(errno != 0)
-            {
-                P101_ERROR_RAISE_ERRNO(err, errno);
-                ret_val = EXIT_TROUBLE;
-            }
-            break;
+            goto done;
         }
+    }
 
-        if(is_dot_entry(env, entry->d_name) || should_skip_dir(env, entry->d_name))
+    stream = p101_popen(env, err, command, "r");
+    if(stream == NULL)
+    {
+        goto done;
+    }
+
+    while(p101_fgets(env, err, line, sizeof(line), stream) != NULL && p101_error_has_no_error(err))
+    {
+        struct p101_c_fact      fact;
+        enum p101_c_fact_status status;
+
+        if(!fact_line_is_complete(env, err, stream, line))
         {
             continue;
         }
 
-        written = p101_snprintf(env, err, child, sizeof(child), "%s/%s", path, entry->d_name);
-        if(p101_error_has_error(err))
+        status = p101_c_fact_parse_line(env, err, line, &fact);
+        if(status == P101_C_FACT_OTHER)
         {
-            ret_val = EXIT_TROUBLE;
+            continue;
+        }
+        if(status != P101_C_FACT_OK)
+        {
+            if(p101_error_has_no_error(err))
+            {
+                P101_ERROR_RAISE_USER(err, "p101-wrapper-audit emitted an invalid fact record.", ERR_USAGE);
+            }
             break;
         }
-        if(written < 0 || written >= CONTRACT_PATH_LEN)
-        {
-            P101_ERROR_RAISE_USER(err, "Path is too long while scanning.", ERR_TOOL);
-            ret_val = EXIT_TROUBLE;
-            break;
-        }
 
-        if(scan_path(env, err, child, report) == EXIT_TROUBLE)
-        {
-            ret_val = EXIT_TROUBLE;
-            break;
-        }
+        apply_fact(env, err, model, &fact);
     }
 
-    if(p101_closedir(env, err, dir) != 0)
-    {
-        ret_val = EXIT_TROUBLE;
-    }
-
-    return ret_val;
-}
-
-static int scan_file(const struct p101_env *env, struct p101_error *err, const char *path, struct contract_report *report)
-{
-    struct function_state state;
-    char                  line[READ_BUF_LEN];
-    char                  pending_header[FUNCTION_HEADER_LEN];
-    FILE                 *file;
-    size_t                line_number;
-    int                   ret_val;
-
-    P101_TRACE(env);
-    reset_function_state(env, &state);
-    pending_header[0] = '\0';
-    line_number       = 0U;
-    ret_val           = EXIT_SUCCESS;
-    file              = p101_fopen(env, err, path, "r");
-
-    if(file == NULL)
-    {
-        return EXIT_TROUBLE;
-    }
-
-    report->files_scanned++;
-
-    while(p101_fgets(env, err, line, sizeof(line), file) != NULL && p101_error_has_no_error(err))
-    {
-        line_number++;
-        process_line(env, err, report, &state, path, line, line_number, pending_header, sizeof(pending_header));
-    }
-
-    if(p101_error_has_error(err) || p101_ferror(env, file))
-    {
-        ret_val = EXIT_TROUBLE;
-    }
-
-    if(p101_fclose(env, err, file) != 0)
-    {
-        ret_val = EXIT_TROUBLE;
-    }
-
-    return ret_val;
-}
-
-static void process_line(const struct p101_env *env, struct p101_error *err, struct contract_report *report, struct function_state *state, const char *path, const char *line, size_t line_number, char *pending_header, size_t pending_header_size)
-{
-    P101_TRACE(env);
-
-    if(state->active)
-    {
-        process_active_line(env, err, report, state, path, line, line_number);
-        state->brace_depth += brace_delta(line);
-        if(state->brace_depth <= 0)
-        {
-            reset_function_state(env, state);
-        }
-        return;
-    }
-
-    if(line_is_preprocessor(env, line))
-    {
-        pending_header[0] = '\0';
-        return;
-    }
-
-    if(pending_header[0] == '\0' && !line_starts_header(env, line))
-    {
-        return;
-    }
-
-    append_header_line(env, err, pending_header, pending_header_size, line);
     if(p101_error_has_error(err))
     {
-        return;
+        goto done;
     }
 
-    if(p101_strchr(env, line, '{') != NULL)
+    if(p101_pclose(env, err, stream) != 0)
     {
-        start_function_if_present(env, state, pending_header, line);
-        pending_header[0] = '\0';
-
-        if(state->active)
+        stream = NULL;
+        if(p101_error_has_no_error(err))
         {
-            process_active_line(env, err, report, state, path, line, line_number);
-            if(state->brace_depth <= 0)
+            P101_ERROR_RAISE_USER(err, "p101-wrapper-audit failed while emitting facts.", ERR_USAGE);
+        }
+        goto done;
+    }
+    stream = NULL;
+
+done:
+    if(stream != NULL)
+    {
+        (void)p101_pclose(env, NULL, stream);
+    }
+}
+
+static void apply_fact(const struct p101_env *env, struct p101_error *err, struct contract_model *model, const struct p101_c_fact *fact)
+{
+    P101_TRACE(env);
+
+#ifdef __clang__
+    #pragma clang diagnostic push
+    #pragma clang diagnostic ignored "-Wcovered-switch-default"
+#endif
+    switch(fact->kind)
+    {
+        case P101_C_FACT_KIND_UNKNOWN:
+            break;
+        case P101_C_FACT_KIND_FILE:
+            model->files_scanned++;
+            break;
+        case P101_C_FACT_KIND_INCLUDE:
+        case P101_C_FACT_KIND_TYPE:
+        case P101_C_FACT_KIND_MACRO:
+            break;
+        case P101_C_FACT_KIND_FUNCTION:
+            if(!fact->flag2)
             {
-                reset_function_state(env, state);
+                add_function(env, err, model, fact);
+            }
+            break;
+        case P101_C_FACT_KIND_CALL:
+            if(call_needs_env(env, fact->value) || call_needs_error(env, fact->value))
+            {
+                add_event(env, err, model, CONTRACT_EVENT_CALL, fact);
+            }
+            break;
+        case P101_C_FACT_KIND_NOTE:
+            if(p101_strcmp(env, fact->value, "ENV_CONTRACT") == 0)
+            {
+                set_function_contract(env, model, fact, true);
+            }
+            else if(p101_strcmp(env, fact->value, "ERROR_CONTRACT") == 0)
+            {
+                set_function_contract(env, model, fact, false);
+            }
+            else if(p101_strcmp(env, fact->value, "ENV_USE") == 0)
+            {
+                add_event(env, err, model, CONTRACT_EVENT_ENV_USE, fact);
+            }
+            else if(p101_strcmp(env, fact->value, "ERROR_USE") == 0)
+            {
+                add_event(env, err, model, CONTRACT_EVENT_ERROR_USE, fact);
+            }
+            else if(p101_strcmp(env, fact->value, "TRACE_USE") == 0)
+            {
+                add_event(env, err, model, CONTRACT_EVENT_TRACE_USE, fact);
+            }
+            else if(p101_strcmp(env, fact->value, "ERROR_CHECK") == 0)
+            {
+                add_event(env, err, model, CONTRACT_EVENT_ERROR_CHECK, fact);
+            }
+            break;
+        default:
+            break;
+    }
+#ifdef __clang__
+    #pragma clang diagnostic pop
+#endif
+}
+
+static void add_function(const struct p101_env *env, struct p101_error *err, struct contract_model *model, const struct p101_c_fact *fact)
+{
+    struct contract_function *function;
+
+    P101_TRACE(env);
+    if(model->function_count >= MAX_FACT_FUNCTIONS)
+    {
+        P101_ERROR_RAISE_USER(err, "Too many functions in fact stream.", ERR_TOOL);
+        goto done;
+    }
+
+    function = &model->functions[model->function_count++];
+    copy_text(env, function->path, sizeof(function->path), fact->path);
+    copy_text(env, function->name, sizeof(function->name), fact->value);
+    function->line = fact->line;
+
+done:
+    return;
+}
+
+static void add_event(const struct p101_env *env, struct p101_error *err, struct contract_model *model, enum contract_event_kind kind, const struct p101_c_fact *fact)
+{
+    struct contract_event *event;
+
+    P101_TRACE(env);
+    if(model->event_count >= MAX_FACT_EVENTS)
+    {
+        P101_ERROR_RAISE_USER(err, "Too many events in fact stream.", ERR_TOOL);
+        goto done;
+    }
+
+    event = &model->events[model->event_count++];
+    copy_text(env, event->path, sizeof(event->path), fact->path);
+    copy_text(env, event->name, sizeof(event->name), fact->value);
+    event->line = fact->line;
+    event->kind = kind;
+
+done:
+    return;
+}
+
+static void set_function_contract(const struct p101_env *env, struct contract_model *model, const struct p101_c_fact *fact, bool is_env)
+{
+    P101_TRACE(env);
+    for(size_t i = 0U; i < model->function_count; i++)
+    {
+        struct contract_function *function;
+
+        function = &model->functions[i];
+        if(function->line == fact->line && p101_strcmp(env, function->path, fact->path) == 0)
+        {
+            if(is_env)
+            {
+                function->has_env_contract = true;
+            }
+            else
+            {
+                function->has_error_contract = true;
+            }
+            break;
+        }
+    }
+}
+
+static void analyze_model(const struct p101_env *env, struct p101_error *err, const struct contract_model *model, struct contract_report *report)
+{
+    P101_TRACE(env);
+    for(size_t i = 0U; i < model->function_count && p101_error_has_no_error(err); i++)
+    {
+        struct contract_function function;
+        size_t                   end_line;
+
+        function = model->functions[i];
+        end_line = next_function_line(env, model, &function);
+
+        for(size_t j = 0U; j < model->event_count && p101_error_has_no_error(err); j++)
+        {
+            const struct contract_event *event;
+
+            event = &model->events[j];
+            if(!event_is_in_function(env, event, &function, end_line))
+            {
+                continue;
+            }
+
+            if((event->kind == CONTRACT_EVENT_TRACE_USE || (event->kind == CONTRACT_EVENT_CALL && call_needs_env(env, event->name))) && !function.env_reported && !visible_env_before_event(env, model, &function, event, end_line))
+            {
+                p101_error_contract_report_finding(env, err, report, "P101-ERR-001", event->path, event->line, function.name, "p101 call or P101_TRACE appears before a visible p101_env/env contract");
+                function.env_reported = true;
+            }
+
+            if((event->kind == CONTRACT_EVENT_ERROR_CHECK || (event->kind == CONTRACT_EVENT_CALL && call_needs_error(env, event->name))) && !function.error_reported && !visible_error_before_event(env, model, &function, event, end_line))
+            {
+                p101_error_contract_report_finding(env, err, report, "P101-ERR-002", event->path, event->line, function.name, "fallible p101 call or error macro appears before a visible p101_error/err contract");
+                function.error_reported = true;
             }
         }
     }
-    else if(line_ends_declaration(env, line))
-    {
-        pending_header[0] = '\0';
-    }
 }
 
-static void process_active_line(const struct p101_env *env, struct p101_error *err, struct contract_report *report, struct function_state *state, const char *path, const char *line, size_t line_number)
+static size_t next_function_line(const struct p101_env *env, const struct contract_model *model, const struct contract_function *function)
 {
+    size_t line;
+
     P101_TRACE(env);
-
-    if(contains_identifier(env, line, "env") || contains_identifier(env, line, "p101_env"))
+    line = (size_t)-1;
+    for(size_t i = 0U; i < model->function_count; i++)
     {
-        state->has_env = true;
+        const struct contract_function *candidate;
+
+        candidate = &model->functions[i];
+        if(candidate->line > function->line && candidate->line < line && p101_strcmp(env, candidate->path, function->path) == 0)
+        {
+            line = candidate->line;
+        }
     }
 
-    if(contains_identifier(env, line, "err") || contains_identifier(env, line, "p101_error"))
-    {
-        state->has_err = true;
-    }
-
-    if(!state->has_env && !state->env_reported && contains_p101_call_needing_env(env, line))
-    {
-        p101_error_contract_report_finding(env, err, report, "P101-ERR-001", path, line_number, state->name, "p101 call or P101_TRACE appears before a visible p101_env/env contract");
-        state->env_reported = true;
-    }
-
-    if(!state->has_err && !state->err_reported && contains_p101_error_contract_use(env, line))
-    {
-        p101_error_contract_report_finding(env, err, report, "P101-ERR-002", path, line_number, state->name, "fallible p101 call or error macro appears before a visible p101_error/err contract");
-        state->err_reported = true;
-    }
+    return line;
 }
 
-static void start_function_if_present(const struct p101_env *env, struct function_state *state, const char *header, const char *line)
+static bool event_is_in_function(const struct p101_env *env, const struct contract_event *event, const struct contract_function *function, size_t end_line)
 {
     P101_TRACE(env);
-
-    reset_function_state(env, state);
-    if(!parse_function_name(env, header, state->name, sizeof(state->name)))
-    {
-        return;
-    }
-
-    state->active       = true;
-    state->brace_depth  = brace_delta(line);
-    state->has_env      = false;
-    state->has_err      = false;
-    state->env_reported = false;
-    state->err_reported = false;
-
-    if(contains_identifier(env, header, "env") || contains_identifier(env, header, "p101_env"))
-    {
-        state->has_env = true;
-    }
-
-    if(contains_identifier(env, header, "err") || contains_identifier(env, header, "p101_error"))
-    {
-        state->has_err = true;
-    }
-}
-
-static void append_header_line(const struct p101_env *env, struct p101_error *err, char *pending_header, size_t pending_header_size, const char *line)
-{
-    size_t current_len;
-    size_t line_len;
-
-    P101_TRACE(env);
-    current_len = p101_strlen(env, pending_header);
-    line_len    = p101_strlen(env, line);
-
-    if(current_len + line_len + 2U >= pending_header_size)
-    {
-        P101_ERROR_RAISE_USER(err, "Function header is too long for heuristic scanner.", ERR_TOOL);
-        return;
-    }
-
-    if(current_len != 0U)
-    {
-        pending_header[current_len]      = ' ';
-        pending_header[current_len + 1U] = '\0';
-        current_len++;
-    }
-
-    p101_strncpy(env, &pending_header[current_len], line, pending_header_size - current_len - 1U);
-    pending_header[pending_header_size - 1U] = '\0';
-}
-
-static void reset_function_state(const struct p101_env *env, struct function_state *state)
-{
-    P101_TRACE(env);
-    p101_memset(env, state, 0, sizeof(*state));
-}
-
-static bool is_source_file(const struct p101_env *env, const char *path)
-{
-    const char *dot;
-
-    P101_TRACE(env);
-    dot = p101_strrchr(env, path, '.');
-
-    if(dot == NULL)
+    if(p101_strcmp(env, event->path, function->path) != 0)
     {
         return false;
     }
+    if(event->line < function->line || event->line >= end_line)
+    {
+        return false;
+    }
+    return true;
+}
 
-    if(p101_strcmp(env, dot, ".c") == 0 || p101_strcmp(env, dot, ".h") == 0 || p101_strcmp(env, dot, ".cc") == 0 || p101_strcmp(env, dot, ".cpp") == 0 || p101_strcmp(env, dot, ".hh") == 0 || p101_strcmp(env, dot, ".hpp") == 0)
+static bool visible_env_before_event(const struct p101_env *env, const struct contract_model *model, const struct contract_function *function, const struct contract_event *event, size_t end_line)
+{
+    P101_TRACE(env);
+    if(function->has_env_contract)
     {
         return true;
     }
 
-    return false;
-}
-
-static bool should_skip_dir(const struct p101_env *env, const char *name)
-{
-    P101_TRACE(env);
-    if(p101_strcmp(env, name, ".git") == 0 || p101_strcmp(env, name, "build") == 0 || p101_strncmp(env, name, "build-", BUILD_PREFIX_LEN) == 0 || p101_strncmp(env, name, "cmake-build-", CMAKE_BUILD_PREFIX_LEN) == 0 ||
-       p101_strncmp(env, name, "coverage-", COVERAGE_PREFIX_LEN) == 0 || p101_strcmp(env, name, "findings") == 0 || p101_strcmp(env, name, "artifacts") == 0)
+    for(size_t i = 0U; i < model->event_count; i++)
     {
-        return true;
-    }
+        const struct contract_event *candidate;
 
-    return false;
-}
-
-static bool is_dot_entry(const struct p101_env *env, const char *name)
-{
-    P101_TRACE(env);
-    if(p101_strcmp(env, name, ".") == 0 || p101_strcmp(env, name, "..") == 0)
-    {
-        return true;
-    }
-
-    return false;
-}
-
-static bool line_is_preprocessor(const struct p101_env *env, const char *line)
-{
-    const char *cursor;
-
-    P101_TRACE(env);
-    cursor = line;
-
-    while(*cursor != '\0' && p101_isspace(env, (unsigned char)*cursor))
-    {
-        cursor++;
-    }
-
-    return *cursor == '#';
-}
-
-static bool line_starts_header(const struct p101_env *env, const char *line)
-{
-    P101_TRACE(env);
-    if(p101_strchr(env, line, '(') != NULL && p101_strchr(env, line, ';') == NULL && p101_strchr(env, line, '=') == NULL)
-    {
-        return true;
-    }
-
-    return false;
-}
-
-static bool line_ends_declaration(const struct p101_env *env, const char *line)
-{
-    P101_TRACE(env);
-    return p101_strchr(env, line, ';') != NULL;
-}
-
-static bool contains_identifier(const struct p101_env *env, const char *text, const char *needle)
-{
-    const char *cursor;
-    size_t      needle_len;
-
-    P101_TRACE(env);
-    needle_len = p101_strlen(env, needle);
-    cursor     = text;
-
-    while((cursor = p101_strstr(env, cursor, needle)) != NULL)
-    {
-        char before;
-        char after;
-
-        before = (cursor == text) ? '\0' : cursor[-1];
-        after  = cursor[needle_len];
-
-        if(!is_identifier_char(env, (unsigned char)before) && !is_identifier_char(env, (unsigned char)after))
-        {
-            return true;
-        }
-
-        cursor++;
-    }
-
-    return false;
-}
-
-static bool contains_any_identifier(const struct p101_env *env, const char *text, const char *const needles[])
-{
-    size_t i;
-
-    P101_TRACE(env);
-    for(i = 0U; needles[i] != NULL; i++)
-    {
-        if(contains_identifier(env, text, needles[i]))
+        candidate = &model->events[i];
+        if(candidate->kind == CONTRACT_EVENT_ENV_USE && candidate->line <= event->line && event_is_in_function(env, candidate, function, end_line))
         {
             return true;
         }
@@ -479,24 +405,43 @@ static bool contains_any_identifier(const struct p101_env *env, const char *text
     return false;
 }
 
-static bool contains_p101_call_needing_env(const struct p101_env *env, const char *line)
+static bool visible_error_before_event(const struct p101_env *env, const struct contract_model *model, const struct contract_function *function, const struct contract_event *event, size_t end_line)
 {
-    static const char *const env_calls[] = {
-        "P101_TRACE",   "p101_access", "p101_calloc",   "p101_chdir", "p101_closedir", "p101_close",  "p101_dup",    "p101_dup2",    "p101_env_destroy", "p101_execv",   "p101_execve", "p101_execvp", "p101_fclose", "p101_fgets",   "p101_fopen",
-        "p101_fprintf", "p101_fputs",  "p101_fread",    "p101_fstat", "p101_lstat",    "p101_malloc", "p101_memset", "p101_mkdir",   "p101_open",        "p101_opendir", "p101_pipe",   "p101_printf", "p101_read",   "p101_realloc", "p101_readdir",
-        "p101_rename",  "p101_rmdir",  "p101_snprintf", "p101_stat",  "p101_strchr",   "p101_strcmp", "p101_strlen", "p101_strncmp", "p101_strrchr",     "p101_strstr",  "p101_unlink", "p101_write",  NULL,
+    P101_TRACE(env);
+    if(function->has_error_contract)
+    {
+        return true;
+    }
+
+    for(size_t i = 0U; i < model->event_count; i++)
+    {
+        const struct contract_event *candidate;
+
+        candidate = &model->events[i];
+        if(candidate->kind == CONTRACT_EVENT_ERROR_USE && candidate->line <= event->line && event_is_in_function(env, candidate, function, end_line))
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+static bool call_needs_env(const struct p101_env *env, const char *name)
+{
+    static const char *const names[] = {
+        "p101_access",  "p101_calloc", "p101_chdir", "p101_closedir", "p101_close", "p101_dup",    "p101_dup2",   "p101_env_destroy", "p101_execv",   "p101_execve",  "p101_execvp", "p101_fclose", "p101_fgets", "p101_fopen",
+        "p101_fprintf", "p101_fputs",  "p101_fread", "p101_fstat",    "p101_lstat", "p101_malloc", "p101_memset", "p101_mkdir",       "p101_open",    "p101_opendir", "p101_pipe",   "p101_printf", "p101_read",  "p101_realloc",
+        "p101_readdir", "p101_rename", "p101_rmdir", "p101_snprintf", "p101_stat",  "p101_strchr", "p101_strcmp", "p101_strlen",      "p101_strncmp", "p101_strrchr", "p101_strstr", "p101_unlink", "p101_write", NULL,
     };
 
     P101_TRACE(env);
-    return contains_any_identifier(env, line, env_calls);
+    return name_is_in_list(env, name, names);
 }
 
-static bool contains_p101_error_contract_use(const struct p101_env *env, const char *line)
+static bool call_needs_error(const struct p101_env *env, const char *name)
 {
-    static const char *const fallible[] = {
-        "P101_ERROR_RAISE_ERRNO",
-        "P101_ERROR_RAISE_SYSTEM",
-        "P101_ERROR_RAISE_USER",
+    static const char *const names[] = {
         "p101_access",
         "p101_calloc",
         "p101_chdir",
@@ -504,6 +449,10 @@ static bool contains_p101_error_contract_use(const struct p101_env *env, const c
         "p101_close",
         "p101_dup",
         "p101_dup2",
+        "p101_error_has_error",
+        "p101_error_has_no_error",
+        "p101_error_is_error",
+        "p101_error_reset",
         "p101_execv",
         "p101_execve",
         "p101_execvp",
@@ -534,104 +483,68 @@ static bool contains_p101_error_contract_use(const struct p101_env *env, const c
     };
 
     P101_TRACE(env);
-    return contains_any_identifier(env, line, fallible);
+    return name_is_in_list(env, name, names);
 }
 
-static bool parse_function_name(const struct p101_env *env, const char *header, char *name, size_t name_size)
+static bool name_is_in_list(const struct p101_env *env, const char *name, const char *const names[])
 {
-    const char *paren;
-    const char *end;
-    const char *start;
-    size_t      len;
-    size_t      i;
-
     P101_TRACE(env);
-    paren = p101_strchr(env, header, '(');
-    if(paren == NULL)
+    if(name == NULL)
     {
         return false;
     }
 
-    end = paren;
-    while(end > header && p101_isspace(env, (unsigned char)end[-1]))
+    for(size_t i = 0U; names[i] != NULL; i++)
     {
-        end--;
-    }
-
-    start = end;
-    while(start > header && is_identifier_char(env, (unsigned char)start[-1]))
-    {
-        start--;
-    }
-
-    len = (size_t)(end - start);
-    if(len == 0U || len >= name_size)
-    {
-        return false;
-    }
-
-    for(i = 0U; i < len; i++)
-    {
-        name[i] = start[i];
-    }
-    name[len] = '\0';
-
-    if(is_keyword_function_name(env, name))
-    {
-        return false;
-    }
-
-    return true;
-}
-
-static bool is_keyword_function_name(const struct p101_env *env, const char *name)
-{
-    static const char *const keywords[] = {
-        "if",
-        "for",
-        "while",
-        "switch",
-        "return",
-        "sizeof",
-        "_Generic",
-        NULL,
-    };
-
-    P101_TRACE(env);
-    return contains_any_identifier(env, name, keywords);
-}
-
-static bool is_identifier_char(const struct p101_env *env, int ch)
-{
-    P101_TRACE(env);
-    if(p101_isalnum(env, ch) != 0 || ch == '_')
-    {
-        return true;
+        if(p101_strcmp(env, name, names[i]) == 0)
+        {
+            return true;
+        }
     }
 
     return false;
 }
 
-static int brace_delta(const char *line)
+static bool fact_line_is_complete(const struct p101_env *env, struct p101_error *err, FILE *stream, char *line)
 {
-    int         delta;
-    const char *cursor;
+    bool   complete;
+    size_t length;
 
-    delta  = 0;
-    cursor = line;
+    P101_TRACE(env);
+    complete = true;
+    length   = p101_strlen(env, line);
 
-    while(*cursor != '\0')
+    if(length == READ_BUF_LEN - 1U && p101_strchr(env, line, '\n') == NULL)
     {
-        if(*cursor == '{')
+        char discard[READ_BUF_LEN];
+
+        complete = false;
+        while(p101_error_has_no_error(err) && p101_fgets(env, err, discard, sizeof(discard), stream) != NULL)
         {
-            delta++;
+            if(p101_strchr(env, discard, '\n') != NULL)
+            {
+                break;
+            }
         }
-        else if(*cursor == '}')
-        {
-            delta--;
-        }
-        cursor++;
     }
 
-    return delta;
+    return complete;
+}
+
+static void copy_text(const struct p101_env *env, char *dst, size_t dst_size, const char *src)
+{
+    P101_TRACE(env);
+    if(dst_size == 0U)
+    {
+        return;
+    }
+
+    if(src == NULL)
+    {
+        dst[0] = '\0';
+        return;
+    }
+
+    p101_strncpy(env, dst, src, dst_size - 1U);
+    dst[dst_size - 1U] = '\0';
 }

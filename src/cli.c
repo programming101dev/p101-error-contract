@@ -26,7 +26,7 @@ void p101_error_contract_parse_arguments(const struct p101_env *env, struct p101
         p101_error_contract_usage(env, err, argv[0], EXIT_SUCCESS, NULL);
     }
 
-    while((opt = p101_getopt(env, argc, argv, ":hjq")) != -1 && p101_error_has_no_error(err))
+    while((opt = p101_getopt(env, argc, argv, ":hjqvF:")) != -1 && p101_error_has_no_error(err))
     {
         switch(opt)
         {
@@ -42,6 +42,16 @@ void p101_error_contract_parse_arguments(const struct p101_env *env, struct p101
             case 'q':
             {
                 args->quiet = true;
+                break;
+            }
+            case 'v':
+            {
+                args->verbose = true;
+                break;
+            }
+            case 'F':
+            {
+                args->fact_tool_path = optarg;
                 break;
             }
             case ':':
@@ -79,17 +89,24 @@ void p101_error_contract_parse_arguments(const struct p101_env *env, struct p101
         }
     }
 
-    args->paths      = &argv[optind];
-    args->path_count = argc - optind;
+    while(optind < argc && args->path_count < P101_ERROR_CONTRACT_MAX_PATHS)
+    {
+        args->paths[args->path_count++] = argv[optind++];
+    }
+
+    if(optind < argc)
+    {
+        P101_ERROR_RAISE_USER(err, "Too many paths.", ERR_USAGE);
+    }
 }
 
 void p101_error_contract_check_arguments(const struct p101_env *env, struct p101_error *err, const struct arguments *args)
 {
     P101_TRACE(env);
 
-    if(args->path_count < 0)
+    if(args->fact_tool_path != NULL && args->fact_tool_path[0] == '\0')
     {
-        P101_ERROR_RAISE_USER(err, "Invalid argument state.", ERR_USAGE);
+        P101_ERROR_RAISE_USER(err, "The p101-wrapper-audit path must not be empty.", ERR_USAGE);
     }
 }
 
@@ -105,11 +122,13 @@ _Noreturn void p101_error_contract_usage(const struct p101_env *env, struct p101
         p101_fprintf(env, err, stream, "%s\n\n", message);
     }
 
-    p101_fprintf(env, err, stream, "Usage: %s [-h] [-j] [-q] [path ...]\n", program_name);
+    p101_fprintf(env, err, stream, "Usage: %s [-h] [-j] [-q] [-v] [-F <p101-wrapper-audit>] [path ...]\n", program_name);
     p101_fputs(env, err, "\nChecks p101 error-handling contracts in C source files.\n\n", stream);
     p101_fputs(env, err, "Options:\n", stream);
     p101_fputs(env, err, "  -j        Emit JSON findings and summary.\n", stream);
     p101_fputs(env, err, "  -q        Quiet: print only findings, not the clean summary.\n", stream);
+    p101_fputs(env, err, "  -v        Show the fact command on stderr.\n", stream);
+    p101_fputs(env, err, "  -F <tool> p101-wrapper-audit executable used for Clang AST facts.\n", stream);
     p101_fputs(env, err, "  -h        Show this help.\n", stream);
     p101_fputs(env, err, "\nIf no path is given, src is scanned.\n", stream);
     p101_fputs(env, err, "\nExit status: 0 clean, 1 findings, 2 usage/tool trouble.\n", stream);

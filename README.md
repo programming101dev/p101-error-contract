@@ -4,13 +4,14 @@
 function uses p101 wrappers, tracing, or p101 error macros, the function should
 make its `env` and `err` contracts visible.
 
-This is a teaching checker. It is deliberately deterministic and conservative
-enough to use as a gate, but it is not a full C parser or proof engine.
+The tool consumes the shared `P101FACT` stream produced by
+`p101-wrapper-audit --emit-module-facts` and parsed through `lib_c_facts`, so it
+does not own a private C parser.
 
 ## Usage
 
 ```sh
-p101-error-contract [-h] [-j] [-q] [path ...]
+p101-error-contract [-h] [-j] [-q] [-v] [-F <p101-wrapper-audit>] [path ...]
 ```
 
 Examples:
@@ -18,6 +19,7 @@ Examples:
 ```sh
 p101-error-contract
 p101-error-contract src include
+p101-error-contract -F ../p101-wrapper-audit/p101-wrapper-audit src
 p101-error-contract -j src > error-contract.json
 ```
 
@@ -30,7 +32,8 @@ If no path is supplied, `src` is scanned.
 | `P101-ERR-001` | A p101 wrapper call or `P101_TRACE` appears before a visible `p101_env` / `env` contract in the current function. |
 | `P101-ERR-002` | A fallible p101 wrapper call or p101 error macro appears before a visible `p101_error` / `err` contract in the current function. |
 
-The checker accepts either a signature-level contract:
+The checker accepts either a signature-level contract discovered from Clang AST
+facts:
 
 ```c
 static int load_file(const struct p101_env *env, struct p101_error *err, const char *path);
@@ -45,9 +48,10 @@ struct p101_env   *env = p101_env_create(err, NULL);
 
 ## Admitted inputs
 
-The tool scans regular files ending in `.c`, `.h`, `.cc`, `.cpp`, `.hh`, or
-`.hpp`. Directories are traversed recursively. Build, coverage, fuzz finding,
-fuzz artifact, and `.git` directories are skipped.
+The user gives source/header paths. Internally, the tool runs
+`p101-wrapper-audit --emit-module-facts` over those paths and consumes the
+resulting TSV fact stream. Use `-F` or `P101_ERROR_CONTRACT_FACT_TOOL` to choose
+the wrapper-audit executable. `P101_WRAPPER_AUDIT` is also honored.
 
 ## Outputs
 
@@ -65,18 +69,18 @@ With `-j`, the tool emits JSON:
 
 ## Blind spots
 
-This first version uses a simple lexical function scanner. It does not expand
-macros, evaluate `#if`, parse comments/strings perfectly, or understand every C
-declaration form. It is intended to catch ordinary p101 contract drift in
-student code, not prove all possible C programs correct.
+This checker is only as complete as the fact stream it receives. If
+`p101-wrapper-audit` cannot parse a translation unit, or the wrong include flags
+or compile database are used, the contract report is partial or fails as tool
+trouble. The contract judgment is still a teaching heuristic, not a proof of all
+possible C control flow.
 
 Direct libc calls are outside this tool's job; use `p101-wrapper-audit` for
 that. Third-party code is only checked if you ask this tool to scan it, and it
 may not follow p101 conventions.
 
-Implementation note: directory traversal uses the p101 `opendir` and `closedir`
-wrappers, but raw `readdir` for iteration so end-of-directory can be
-distinguished cleanly from an error.
+Implementation note: C parsing belongs to `p101-wrapper-audit`; fact parsing
+belongs to `lib_c_facts`; this tool owns only the error-contract policy.
 
 ## Exit status
 
