@@ -1,0 +1,119 @@
+#include "cli.h"
+#include "constants.h"
+#include "errors.h"
+#include <p101_c/p101_ctype.h>
+#include <p101_c/p101_stdio.h>
+#include <p101_c/p101_stdlib.h>
+#include <p101_c/p101_string.h>
+#include <p101_posix/p101_unistd.h>
+#include <stdlib.h>
+
+void p101_error_contract_arguments_init(const struct p101_env *env, struct arguments *args)
+{
+    P101_TRACE(env);
+    p101_memset(env, args, 0, sizeof(*args));
+}
+
+void p101_error_contract_parse_arguments(const struct p101_env *env, struct p101_error *err, int argc, char *argv[], struct arguments *args)
+{
+    int opt;
+
+    P101_TRACE(env);
+    opterr = 0;
+
+    if(argc == 2 && p101_strcmp(env, argv[1], "--help") == 0)
+    {
+        p101_error_contract_usage(env, err, argv[0], EXIT_SUCCESS, NULL);
+    }
+
+    while((opt = p101_getopt(env, argc, argv, ":hjq")) != -1 && p101_error_has_no_error(err))
+    {
+        switch(opt)
+        {
+            case 'h':
+            {
+                p101_error_contract_usage(env, err, argv[0], EXIT_SUCCESS, NULL);
+            }
+            case 'j':
+            {
+                args->json = true;
+                break;
+            }
+            case 'q':
+            {
+                args->quiet = true;
+                break;
+            }
+            case ':':
+            {
+                char msg[MSG_LEN];
+
+                p101_snprintf(env, err, msg, sizeof(msg), "Option '-%c' requires an argument.", optopt ? optopt : '?');
+                P101_ERROR_RAISE_USER(err, msg, ERR_USAGE);
+                break;
+            }
+            case '?':
+            {
+                char msg[MSG_LEN];
+
+                if(p101_isprint(env, optopt))
+                {
+                    p101_snprintf(env, err, msg, sizeof(msg), "Unknown option '-%c'.", optopt);
+                }
+                else
+                {
+                    p101_snprintf(env, err, msg, sizeof(msg), "Unknown option character 0x%02X.", (unsigned)(unsigned char)optopt);
+                }
+
+                P101_ERROR_RAISE_USER(err, msg, ERR_USAGE);
+                break;
+            }
+            default:
+            {
+                char msg[MSG_LEN];
+
+                p101_snprintf(env, err, msg, sizeof(msg), "Internal error: unhandled option '-%c' returned by getopt.", p101_isprint(env, opt) ? opt : '?');
+                P101_ERROR_RAISE_USER(err, msg, ERR_USAGE);
+                break;
+            }
+        }
+    }
+
+    args->paths      = &argv[optind];
+    args->path_count = argc - optind;
+}
+
+void p101_error_contract_check_arguments(const struct p101_env *env, struct p101_error *err, const struct arguments *args)
+{
+    P101_TRACE(env);
+
+    if(args->path_count < 0)
+    {
+        P101_ERROR_RAISE_USER(err, "Invalid argument state.", ERR_USAGE);
+    }
+}
+
+_Noreturn void p101_error_contract_usage(const struct p101_env *env, struct p101_error *err, const char *program_name, int exit_code, const char *message)
+{
+    FILE *stream;
+
+    P101_TRACE(env);
+    stream = (exit_code == EXIT_SUCCESS) ? stdout : stderr;
+
+    if(message != NULL)
+    {
+        p101_fprintf(env, err, stream, "%s\n\n", message);
+    }
+
+    p101_fprintf(env, err, stream, "Usage: %s [-h] [-j] [-q] [path ...]\n", program_name);
+    p101_fputs(env, err, "\nChecks p101 error-handling contracts in C source files.\n\n", stream);
+    p101_fputs(env, err, "Options:\n", stream);
+    p101_fputs(env, err, "  -j        Emit JSON findings and summary.\n", stream);
+    p101_fputs(env, err, "  -q        Quiet: print only findings, not the clean summary.\n", stream);
+    p101_fputs(env, err, "  -h        Show this help.\n", stream);
+    p101_fputs(env, err, "\nIf no path is given, src is scanned.\n", stream);
+    p101_fputs(env, err, "\nExit status: 0 clean, 1 findings, 2 usage/tool trouble.\n", stream);
+
+    p101_error_destroy(err);
+    exit(exit_code);
+}

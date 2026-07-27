@@ -1,0 +1,21 @@
+#ifndef P101_ERROR_CONTRACT_CONSTANTS_H
+#define P101_ERROR_CONTRACT_CONSTANTS_H
+
+enum
+{
+    MSG_LEN                 = 256,
+    READ_BUF_LEN            = 4096,
+    CONTRACT_PATH_LEN       = 4096,
+    FUNCTION_NAME_LEN       = 256,
+    FUNCTION_HEADER_LEN     = 2048,
+    BUILD_PREFIX_LEN        = 6,
+    CMAKE_BUILD_PREFIX_LEN  = 12,
+    COVERAGE_PREFIX_LEN     = 9,
+    JSON_CONTROL_CHAR_LIMIT = 0x20,
+    EXIT_FINDINGS           = 1,
+    EXIT_TROUBLE            = 2
+};
+
+#define DEFAULT_SOURCE_PATH "src"
+
+#endif    // P101_ERROR_CONTRACT_CONSTANTS_H
