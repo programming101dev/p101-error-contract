@@ -159,6 +159,17 @@ void p101_error_contract_build_fact_command(const struct p101_env *env, struct p
     if(args->path_count == 0U)
     {
         append_include_roots(env, err, command, command_size, DEFAULT_SOURCE_PATH);
+    }
+    else
+    {
+        for(size_t i = 0U; i < args->path_count && p101_error_has_no_error(err); i++)
+        {
+            append_include_roots(env, err, command, command_size, args->paths[i]);
+        }
+    }
+
+    if(args->path_count == 0U)
+    {
         append_char_checked(env, err, command, command_size, ' ');
         append_shell_quoted(env, err, command, command_size, DEFAULT_SOURCE_PATH);
     }
@@ -166,7 +177,6 @@ void p101_error_contract_build_fact_command(const struct p101_env *env, struct p
     {
         for(size_t i = 0U; i < args->path_count && p101_error_has_no_error(err); i++)
         {
-            append_include_roots(env, err, command, command_size, args->paths[i]);
             append_char_checked(env, err, command, command_size, ' ');
             append_shell_quoted(env, err, command, command_size, args->paths[i]);
         }
