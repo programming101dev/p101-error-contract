@@ -46,3 +46,4 @@ function(p101_add_test name)
 endfunction()
 
 p101_add_test(test_p101_string test_p101_string.c)
+p101_add_test(test_fact_command test_fact_command.c ../src/fact_command.c)
