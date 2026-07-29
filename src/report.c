@@ -75,11 +75,16 @@ static void json_string(const struct p101_env *env, struct p101_error *err, cons
     if(text != NULL)
     {
         const unsigned char *cursor;
+        size_t               length;
 
         cursor = (const unsigned char *)text;
-        while(*cursor != '\0')
+        length = p101_strlen(env, text);
+        for(size_t index = 0U; index < length && p101_error_has_no_error(err); index++)
         {
-            switch(*cursor)
+            unsigned char current;
+
+            current = cursor[index];
+            switch(current)
             {
                 case '\"':
                     p101_fputs(env, err, "\\\"", stdout);
@@ -97,17 +102,16 @@ static void json_string(const struct p101_env *env, struct p101_error *err, cons
                     p101_fputs(env, err, "\\t", stdout);
                     break;
                 default:
-                    if(*cursor < JSON_CONTROL_CHAR_LIMIT)
+                    if(current < JSON_CONTROL_CHAR_LIMIT)
                     {
-                        p101_fprintf(env, err, stdout, "\\u%04x", (unsigned)*cursor);
+                        p101_fprintf(env, err, stdout, "\\u%04x", (unsigned)current);
                     }
                     else
                     {
-                        p101_fprintf(env, err, stdout, "%c", *cursor);
+                        p101_fprintf(env, err, stdout, "%c", current);
                     }
                     break;
             }
-            cursor++;
         }
     }
 
