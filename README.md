@@ -11,7 +11,7 @@ does not own a private C parser.
 ## Usage
 
 ```sh
-p101-error-contract [-h] [-j] [-q] [-v] [-C <compile_commands.json>] [-F <p101-wrapper-audit>] [path ...]
+p101-error-contract [-h] [-j] [-q] [-v] [-i <facts.tsv> | -C <compile_commands.json> | -F <p101-wrapper-audit>] [path ...]
 ```
 
 Examples:
@@ -21,6 +21,7 @@ p101-error-contract
 p101-error-contract src include
 p101-error-contract -C build-clang/compile_commands.json src
 p101-error-contract -F ../p101-wrapper-audit/p101-wrapper-audit src
+p101-error-contract -i source-facts.tsv src include
 p101-error-contract -j src > error-contract.json
 ```
 
@@ -32,6 +33,13 @@ If no path is supplied, `src` is scanned.
 | --- | --- |
 | `P101-ERR-001` | A p101 wrapper call or `P101_TRACE` appears before a visible `p101_env` / `env` contract in the current function. |
 | `P101-ERR-002` | A fallible p101 wrapper call or p101 error macro appears before a visible `p101_error` / `err` contract in the current function. |
+
+For a deliberately fallible boolean probe where failure *is* the result rather
+than an error to report, place
+`/* P101_ERROR_CONTRACT_ALLOW_NO_ERROR: reason */` immediately before the
+probe. The exception applies only to a call on that line or the immediately
+following line and is visible to reviewers; do not use it to silence ordinary
+error propagation.
 
 The checker accepts either a signature-level contract discovered from Clang AST
 facts:
@@ -49,7 +57,8 @@ struct p101_env   *env = p101_env_create(err, NULL);
 
 ## Admitted inputs
 
-The user gives source/header paths. Internally, the tool runs
+The user gives source/header paths. With `-i`, the tool consumes that exact
+P101FACT v2 snapshot and does not invoke Clang again. Otherwise, it runs
 `p101-wrapper-audit --emit-module-facts` over those paths and consumes the
 resulting TSV fact stream. If the current project has a Clang build named by
 `.last-build-dir`, or a `build-clang/compile_commands.json`, that database is
@@ -69,8 +78,11 @@ path/to/file.c:42: P101-ERR-002: fallible p101 call or error macro appears befor
 With `-j`, the tool emits JSON:
 
 ```json
-{"schema":"p101-error-contract-v1","findings":[],"summary":{"files_scanned":0,"findings":0}}
+{"schema":"p101-error-contract-findings-v2","findings":[],"summary":{"files_scanned":0,"findings":0}}
 ```
+
+Each finding uses the common `id`, `severity`, `location`, `message`, and
+`evidence` envelope.
 
 ## Blind spots
 
@@ -84,8 +96,10 @@ Direct libc calls are outside this tool's job; use `p101-wrapper-audit` for
 that. Third-party code is only checked if you ask this tool to scan it, and it
 may not follow p101 conventions.
 
-Implementation note: C parsing belongs to `p101-wrapper-audit`; fact parsing
-belongs to `lib_c_facts`; this tool owns only the error-contract policy.
+The `needs_env` and `needs_error` decisions come from the resolved callee
+signature recorded in P101FACT v2. C parsing belongs to
+`p101-wrapper-audit`; fact parsing belongs to `lib_c_facts`; this tool owns only
+the error-contract policy.
 
 ## Exit status
 

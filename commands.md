@@ -13,6 +13,7 @@ Run `./change-compiler.sh -c <compiler>` once before building.
 | `./build-clang/p101-error-contract -C build-clang/compile_commands.json src` | Select the Clang compilation database explicitly. |
 | `./build-clang/p101-error-contract -F ../p101-wrapper-audit/p101-wrapper-audit src` | Select the fact-producing wrapper-audit executable explicitly. |
 | `./build-clang/p101-error-contract -j src` | Emit JSON findings and summary. |
+| `./build-clang/p101-error-contract -i source-facts.tsv src include` | Reuse an existing P101FACT v2 snapshot. |
 | `./clean.sh` | Remove build and generated output. |
 
 Less common: `./build-all.sh` builds with every supported compiler,

@@ -30,6 +30,7 @@ set(main_OUTPUT_NAME p101-error-contract)
 set(main_SOURCES
         src/cli.c
         src/contract.c
+        src/contract_model.c
         src/fact_command.c
         src/main.c
         src/report.c
@@ -40,6 +41,7 @@ set(main_HEADERS
         include/cli.h
         include/constants.h
         include/contract.h
+        include/contract_model.h
         include/errors.h
         include/fact_command.h
         include/report.h
@@ -48,6 +50,7 @@ set(main_HEADERS
 set(main_LINK_LIBRARIES
         p101_error
         p101_env
+        p101_tool_event
         p101_c
         p101_c_facts
         p101_posix

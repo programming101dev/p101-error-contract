@@ -67,6 +67,7 @@ static void test_explicit_compile_database_precedes_source_paths(void)
     TEST_ASSERT_NOT_NULL(compile_db);
     TEST_ASSERT_NOT_NULL(first_source);
     TEST_ASSERT_TRUE(compile_db < first_source);
+    TEST_ASSERT_NOT_NULL(p101_strstr(env, command, " --compile-db-only"));
 }
 
 int main(void)

@@ -172,6 +172,7 @@ void p101_error_contract_build_fact_command(const struct p101_env *env, struct p
     if(compile_db != NULL && p101_error_has_no_error(err))
     {
         append_compile_database(env, err, command, command_size, compile_db);
+        append_checked(env, err, command, command_size, " --compile-db-only");
     }
     append_include_roots(env, err, command, command_size, ".");
     append_include_roots(env, err, command, command_size, "include");

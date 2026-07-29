@@ -15,7 +15,7 @@ void p101_error_contract_report_begin(const struct p101_env *env, struct p101_er
 
     if(report->json)
     {
-        p101_fputs(env, err, "{\"schema\":\"p101-error-contract-v1\",\"findings\":[", stdout);
+        p101_fputs(env, err, "{\"schema\":\"p101-error-contract-findings-v2\",\"findings\":[", stdout);
     }
 }
 
@@ -32,15 +32,15 @@ void p101_error_contract_report_finding(const struct p101_env *env, struct p101_
         }
         report->first_json_finding = false;
 
-        p101_fputs(env, err, "{\"code\":", stdout);
+        p101_fputs(env, err, "{\"id\":", stdout);
         json_string(env, err, code);
-        p101_fputs(env, err, ",\"path\":", stdout);
+        p101_fputs(env, err, ",\"severity\":\"error\",\"location\":{\"path\":", stdout);
         json_string(env, err, path);
         p101_fprintf(env, err, stdout, ",\"line\":%zu,\"function\":", line);
         json_string(env, err, function_name);
-        p101_fputs(env, err, ",\"message\":", stdout);
+        p101_fputs(env, err, "},\"message\":", stdout);
         json_string(env, err, message);
-        p101_fputs(env, err, "}", stdout);
+        p101_fputs(env, err, ",\"evidence\":{\"fact_schema\":\"P101FACT-v2\"}}", stdout);
     }
     else
     {
