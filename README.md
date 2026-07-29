@@ -11,7 +11,7 @@ does not own a private C parser.
 ## Usage
 
 ```sh
-p101-error-contract [-h] [-j] [-q] [-v] [-F <p101-wrapper-audit>] [path ...]
+p101-error-contract [-h] [-j] [-q] [-v] [-C <compile_commands.json>] [-F <p101-wrapper-audit>] [path ...]
 ```
 
 Examples:
@@ -19,6 +19,7 @@ Examples:
 ```sh
 p101-error-contract
 p101-error-contract src include
+p101-error-contract -C build-clang/compile_commands.json src
 p101-error-contract -F ../p101-wrapper-audit/p101-wrapper-audit src
 p101-error-contract -j src > error-contract.json
 ```
@@ -50,8 +51,12 @@ struct p101_env   *env = p101_env_create(err, NULL);
 
 The user gives source/header paths. Internally, the tool runs
 `p101-wrapper-audit --emit-module-facts` over those paths and consumes the
-resulting TSV fact stream. Use `-F` or `P101_ERROR_CONTRACT_FACT_TOOL` to choose
-the wrapper-audit executable. `P101_WRAPPER_AUDIT` is also honored.
+resulting TSV fact stream. If the current project has a Clang build named by
+`.last-build-dir`, or a `build-clang/compile_commands.json`, that database is
+passed automatically so sibling p101 include directories and project defines
+are preserved. Use `-C` to select another compile database explicitly. Use `-F`
+or `P101_ERROR_CONTRACT_FACT_TOOL` to choose the wrapper-audit executable.
+`P101_WRAPPER_AUDIT` is also honored.
 
 ## Outputs
 

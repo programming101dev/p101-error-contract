@@ -10,6 +10,7 @@ Run `./change-compiler.sh -c <compiler>` once before building.
 | `./check.sh --no-fuzz` | Format + strict build + unit tests. Fuzz is skipped because this tool has no fuzzer yet. |
 | `./test.sh` | Build and run the Unity test suite. |
 | `./build-clang/p101-error-contract src` | Scan source for missing visible p101 `env` / `err` contracts using `p101-wrapper-audit` facts. |
+| `./build-clang/p101-error-contract -C build-clang/compile_commands.json src` | Select the Clang compilation database explicitly. |
 | `./build-clang/p101-error-contract -F ../p101-wrapper-audit/p101-wrapper-audit src` | Select the fact-producing wrapper-audit executable explicitly. |
 | `./build-clang/p101-error-contract -j src` | Emit JSON findings and summary. |
 | `./clean.sh` | Remove build and generated output. |

@@ -46,9 +46,33 @@ static void test_cflags_precede_all_positional_source_paths(void)
     TEST_ASSERT_NOT_NULL(p101_strstr(env, first_source, " 'include'"));
 }
 
+static void test_explicit_compile_database_precedes_source_paths(void)
+{
+    struct arguments args;
+    char             command[MAX_COMMAND];
+    const char      *compile_db;
+    const char      *first_source;
+
+    p101_memset(env, &args, 0, sizeof(args));
+    args.fact_tool_path  = "p101-wrapper-audit";
+    args.compile_db_path = "/tmp/project with spaces/compile_commands.json";
+    args.paths[0]        = "src";
+    args.path_count      = 1U;
+
+    p101_error_contract_build_fact_command(env, error, command, sizeof(command), &args);
+
+    TEST_ASSERT_FALSE(p101_error_has_error(error));
+    compile_db  = p101_strstr(env, command, " --compile-db='/tmp/project with spaces/compile_commands.json'");
+    first_source = p101_strstr(env, command, " 'src'");
+    TEST_ASSERT_NOT_NULL(compile_db);
+    TEST_ASSERT_NOT_NULL(first_source);
+    TEST_ASSERT_TRUE(compile_db < first_source);
+}
+
 int main(void)
 {
     UNITY_BEGIN();
     RUN_TEST(test_cflags_precede_all_positional_source_paths);
+    RUN_TEST(test_explicit_compile_database_precedes_source_paths);
     return UNITY_END();
 }

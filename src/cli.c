@@ -26,7 +26,7 @@ void p101_error_contract_parse_arguments(const struct p101_env *env, struct p101
         p101_error_contract_usage(env, err, argv[0], EXIT_SUCCESS, NULL);
     }
 
-    while((opt = p101_getopt(env, argc, argv, ":hjqvF:")) != -1 && p101_error_has_no_error(err))
+    while((opt = p101_getopt(env, argc, argv, ":hjqvC:F:")) != -1 && p101_error_has_no_error(err))
     {
         switch(opt)
         {
@@ -52,6 +52,11 @@ void p101_error_contract_parse_arguments(const struct p101_env *env, struct p101
             case 'F':
             {
                 args->fact_tool_path = optarg;
+                break;
+            }
+            case 'C':
+            {
+                args->compile_db_path = optarg;
                 break;
             }
             case ':':
@@ -108,6 +113,10 @@ void p101_error_contract_check_arguments(const struct p101_env *env, struct p101
     {
         P101_ERROR_RAISE_USER(err, "The p101-wrapper-audit path must not be empty.", ERR_USAGE);
     }
+    if(args->compile_db_path != NULL && args->compile_db_path[0] == '\0')
+    {
+        P101_ERROR_RAISE_USER(err, "The compile database path must not be empty.", ERR_USAGE);
+    }
 }
 
 _Noreturn void p101_error_contract_usage(const struct p101_env *env, struct p101_error *err, const char *program_name, int exit_code, const char *message)
@@ -122,12 +131,13 @@ _Noreturn void p101_error_contract_usage(const struct p101_env *env, struct p101
         p101_fprintf(env, err, stream, "%s\n\n", message);
     }
 
-    p101_fprintf(env, err, stream, "Usage: %s [-h] [-j] [-q] [-v] [-F <p101-wrapper-audit>] [path ...]\n", program_name);
+    p101_fprintf(env, err, stream, "Usage: %s [-h] [-j] [-q] [-v] [-C <compile_commands.json>] [-F <p101-wrapper-audit>] [path ...]\n", program_name);
     p101_fputs(env, err, "\nChecks p101 error-handling contracts in C source files.\n\n", stream);
     p101_fputs(env, err, "Options:\n", stream);
     p101_fputs(env, err, "  -j        Emit JSON findings and summary.\n", stream);
     p101_fputs(env, err, "  -q        Quiet: print only findings, not the clean summary.\n", stream);
     p101_fputs(env, err, "  -v        Show the fact command on stderr.\n", stream);
+    p101_fputs(env, err, "  -C <file> Compile database passed to p101-wrapper-audit.\n", stream);
     p101_fputs(env, err, "  -F <tool> p101-wrapper-audit executable used for Clang AST facts.\n", stream);
     p101_fputs(env, err, "  -h        Show this help.\n", stream);
     p101_fputs(env, err, "\nIf no path is given, src is scanned.\n", stream);

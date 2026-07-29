@@ -4,6 +4,7 @@
 #include <p101_c/p101_stdio.h>
 #include <p101_c/p101_stdlib.h>
 #include <p101_c/p101_string.h>
+#include <p101_c_facts/project.h>
 #include <p101_posix/p101_unistd.h>
 #include <stdbool.h>
 #include <unistd.h>
@@ -12,6 +13,7 @@ static void        append_checked(const struct p101_env *env, struct p101_error 
 static void        append_char_checked(const struct p101_env *env, struct p101_error *err, char *command, size_t command_size, char ch);
 static void        append_shell_quoted(const struct p101_env *env, struct p101_error *err, char *command, size_t command_size, const char *text);
 static void        append_cflag(const struct p101_env *env, struct p101_error *err, char *command, size_t command_size, const char *flag);
+static void        append_compile_database(const struct p101_env *env, struct p101_error *err, char *command, size_t command_size, const char *path);
 static void        append_include_roots(const struct p101_env *env, struct p101_error *err, char *command, size_t command_size, const char *path);
 static const char *choose_fact_tool(const struct p101_env *env, struct p101_error *err, const struct arguments *args);
 static bool        executable_exists(const struct p101_env *env, struct p101_error *err, const char *path);
@@ -71,6 +73,13 @@ static void append_cflag(const struct p101_env *env, struct p101_error *err, cha
     P101_TRACE(env);
     append_checked(env, err, command, command_size, " --cflag=");
     append_shell_quoted(env, err, command, command_size, flag);
+}
+
+static void append_compile_database(const struct p101_env *env, struct p101_error *err, char *command, size_t command_size, const char *path)
+{
+    P101_TRACE(env);
+    append_checked(env, err, command, command_size, " --compile-db=");
+    append_shell_quoted(env, err, command, command_size, path);
 }
 
 static void append_include_roots(const struct p101_env *env, struct p101_error *err, char *command, size_t command_size, const char *path)
@@ -146,6 +155,8 @@ static bool executable_exists(const struct p101_env *env, struct p101_error *err
 
 void p101_error_contract_build_fact_command(const struct p101_env *env, struct p101_error *err, char *command, size_t command_size, const struct arguments *args)
 {
+    char        discovered_compile_db[CONTRACT_PATH_LEN];
+    const char *compile_db;
     const char *tool;
 
     P101_TRACE(env);
@@ -153,6 +164,15 @@ void p101_error_contract_build_fact_command(const struct p101_env *env, struct p
     tool       = choose_fact_tool(env, err, args);
     append_shell_quoted(env, err, command, command_size, tool);
     append_checked(env, err, command, command_size, " --emit-module-facts");
+    compile_db = args->compile_db_path;
+    if(compile_db == NULL && p101_c_facts_find_clang_compile_database(env, err, ".", discovered_compile_db, sizeof(discovered_compile_db)))
+    {
+        compile_db = discovered_compile_db;
+    }
+    if(compile_db != NULL && p101_error_has_no_error(err))
+    {
+        append_compile_database(env, err, command, command_size, compile_db);
+    }
     append_include_roots(env, err, command, command_size, ".");
     append_include_roots(env, err, command, command_size, "include");
 

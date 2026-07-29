@@ -12,6 +12,7 @@ enum
 struct arguments
 {
     const char *fact_tool_path;
+    const char *compile_db_path;
     const char *paths[P101_ERROR_CONTRACT_MAX_PATHS];
     size_t      path_count;
     bool        json;
