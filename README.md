@@ -35,6 +35,8 @@ If no path is supplied, `src` is scanned.
 | `P101-ERR-002` | A fallible p101 wrapper call or p101 error macro appears before a visible `p101_error` / `err` contract in the current function. |
 | `P101-ERR-003` | A fallible p101 wrapper passes `NULL` in the standard error-object position without documenting an intentional best-effort boundary. |
 | `P101-ERR-004` | With `-S`, a second fallible p101 call is reachable on the same Clang statement path before the prior error state is checked or returned. |
+| `P101-ERR-005` | A source file creates more `p101_error` objects than it destroys. |
+| `P101-ERR-006` | A source file creates more `p101_env` objects than it destroys. |
 
 `P101-ERR-004` is intentionally strict. Enable it with `-S` when code must
 preserve the first failure and stop before any later fallible side effect. The
@@ -109,6 +111,11 @@ paths; those require a full compiler CFG and remain a documented blind spot.
 Direct libc calls are outside this tool's job; use `p101-wrapper-audit` for
 that. Third-party code is only checked if you ask this tool to scan it, and it
 may not follow p101 conventions.
+
+The ownership checks are deliberately file-scoped balance checks. They cannot
+prove object identity or infer an undocumented ownership transfer through a
+return value or output parameter. An intentional transfer should therefore be
+made visible in the API and documented when reviewing the finding.
 
 The `needs_env` and `needs_error` decisions come from the resolved callee
 signature recorded in P101FACT v2. The discard check relies on the p101 API

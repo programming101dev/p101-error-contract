@@ -32,6 +32,8 @@ expect() {
 expect 0 --help
 expect 0 -h
 expect 1 -v -F "$facts_tool" "$work/sample.c"
+grep -q 'P101-ERR-005' "$work/stdout"
+grep -q 'P101-ERR-006' "$work/stdout"
 expect 1 -S -F "$facts_tool" "$work/sample.c"
 expect 1 -j -v -F "$facts_tool" "$work/sample.c"
 expect 1 -q -F "$facts_tool" "$work/sample.c"

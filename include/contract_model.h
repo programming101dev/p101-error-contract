@@ -42,6 +42,17 @@ struct contract_event
     bool                     needs_error;
 };
 
+struct contract_ownership_file
+{
+    char   path[CONTRACT_PATH_LEN];
+    size_t error_create_count;
+    size_t error_destroy_count;
+    size_t env_create_count;
+    size_t env_destroy_count;
+    size_t first_error_create_line;
+    size_t first_env_create_line;
+};
+
 struct contract_model
 {
     struct contract_function functions[MAX_FACT_FUNCTIONS];
@@ -49,6 +60,8 @@ struct contract_model
     size_t                   function_count;
     size_t                   event_count;
     size_t                   files_scanned;
+    struct contract_ownership_file ownership_files[MAX_FACT_FUNCTIONS];
+    size_t                         ownership_file_count;
 };
 
 void p101_error_contract_load_facts(const struct p101_env *env, struct p101_error *err, const struct arguments *args, struct contract_model *model);

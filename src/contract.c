@@ -16,6 +16,7 @@ static bool   visible_error_before_event(const struct p101_env *env, const struc
 static bool   error_is_explicitly_optional(const struct p101_env *env, const struct contract_model *model, const struct contract_function *function, const struct contract_event *event, size_t end_line);
 static bool   event_needs_env_contract(const struct contract_event *event);
 static bool   event_needs_error_contract(const struct contract_event *event);
+static void   analyze_ownership(const struct p101_env *env, struct p101_error *err, const struct contract_model *model, struct contract_report *report);
 
 int p101_error_contract_run(const struct p101_env *env, struct p101_error *err, const struct arguments *args)
 {
@@ -38,6 +39,7 @@ int p101_error_contract_run(const struct p101_env *env, struct p101_error *err, 
     {
         report.files_scanned = model->files_scanned;
         analyze_model(env, err, model, &report, args->strict_sequence);
+        analyze_ownership(env, err, model, &report);
     }
 
     if(p101_error_has_no_error(err))
@@ -55,6 +57,25 @@ int p101_error_contract_run(const struct p101_env *env, struct p101_error *err, 
 done:
     p101_free(env, model);
     return ret_val;
+}
+
+static void analyze_ownership(const struct p101_env *env, struct p101_error *err, const struct contract_model *model, struct contract_report *report)
+{
+    P101_TRACE_SCOPE(env);
+    for(size_t i = 0U; i < model->ownership_file_count && p101_error_has_no_error(err); i++)
+    {
+        const struct contract_ownership_file *owner;
+
+        owner = &model->ownership_files[i];
+        if(owner->error_create_count > owner->error_destroy_count)
+        {
+            p101_error_contract_report_finding(env, err, report, "P101-ERR-005", owner->path, owner->first_error_create_line, "-", "this file creates more p101_error objects than it destroys; keep ownership local or make transfer explicit");
+        }
+        if(owner->env_create_count > owner->env_destroy_count)
+        {
+            p101_error_contract_report_finding(env, err, report, "P101-ERR-006", owner->path, owner->first_env_create_line, "-", "this file creates more p101_env objects than it destroys; keep ownership local or make transfer explicit");
+        }
+    }
 }
 
 static void analyze_model(const struct p101_env *env, struct p101_error *err, const struct contract_model *model, struct contract_report *report, bool strict_sequence)

@@ -10,6 +10,7 @@ static void apply_fact(const struct p101_env *env, struct p101_error *err, struc
 static void add_function(const struct p101_env *env, struct p101_error *err, struct contract_model *model, const struct p101_c_fact *fact);
 static void add_event(const struct p101_env *env, struct p101_error *err, struct contract_model *model, enum contract_event_kind kind, const struct p101_c_fact *fact);
 static void set_function_contract(const struct p101_env *env, struct contract_model *model, const struct p101_c_fact *fact, bool is_env);
+static void record_ownership_call(const struct p101_env *env, struct p101_error *err, struct contract_model *model, const struct p101_c_fact *fact);
 static bool fact_line_is_complete(const struct p101_env *env, struct p101_error *err, FILE *stream, char *line);
 static void copy_text(const struct p101_env *env, char *dst, size_t dst_size, const char *src);
 
@@ -142,6 +143,7 @@ static void apply_fact(const struct p101_env *env, struct p101_error *err, struc
             }
             break;
         case P101_C_FACT_KIND_CALL:
+            record_ownership_call(env, err, model, fact);
             if(fact->flag1 || fact->flag2)
             {
                 add_event(env, err, model, CONTRACT_EVENT_CALL, fact);
@@ -195,6 +197,63 @@ static void apply_fact(const struct p101_env *env, struct p101_error *err, struc
 #ifdef __clang__
     #pragma clang diagnostic pop
 #endif
+}
+
+static void record_ownership_call(const struct p101_env *env, struct p101_error *err, struct contract_model *model, const struct p101_c_fact *fact)
+{
+    struct contract_ownership_file *owner;
+    bool                            relevant;
+
+    relevant = (p101_strcmp(env, fact->value, "p101_error_create") == 0 || p101_strcmp(env, fact->value, "p101_error_destroy") == 0 || p101_strcmp(env, fact->value, "p101_env_create") == 0 || p101_strcmp(env, fact->value, "p101_env_destroy") == 0) != 0;
+    if(!relevant)
+    {
+        return;
+    }
+
+    owner = NULL;
+    for(size_t i = 0U; i < model->ownership_file_count; i++)
+    {
+        if(p101_strcmp(env, model->ownership_files[i].path, fact->path) == 0)
+        {
+            owner = &model->ownership_files[i];
+            break;
+        }
+    }
+    if(owner == NULL)
+    {
+        if(model->ownership_file_count >= MAX_FACT_FUNCTIONS)
+        {
+            P101_ERROR_RAISE_USER(err, "Too many ownership files in fact stream.", ERR_TOOL);
+            return;
+        }
+        owner = &model->ownership_files[model->ownership_file_count++];
+        copy_text(env, owner->path, sizeof(owner->path), fact->path);
+    }
+
+    if(p101_strcmp(env, fact->value, "p101_error_create") == 0)
+    {
+        owner->error_create_count++;
+        if(owner->first_error_create_line == 0U)
+        {
+            owner->first_error_create_line = fact->line;
+        }
+    }
+    else if(p101_strcmp(env, fact->value, "p101_error_destroy") == 0)
+    {
+        owner->error_destroy_count++;
+    }
+    else if(p101_strcmp(env, fact->value, "p101_env_create") == 0)
+    {
+        owner->env_create_count++;
+        if(owner->first_env_create_line == 0U)
+        {
+            owner->first_env_create_line = fact->line;
+        }
+    }
+    else
+    {
+        owner->env_destroy_count++;
+    }
 }
 
 static void add_function(const struct p101_env *env, struct p101_error *err, struct contract_model *model, const struct p101_c_fact *fact)
