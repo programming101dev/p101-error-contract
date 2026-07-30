@@ -17,17 +17,32 @@ void p101_error_contract_arguments_init(const struct p101_env *env, struct argum
 void p101_error_contract_parse_arguments(const struct p101_env *env, struct p101_error *err, int argc, char *argv[], struct arguments *args)
 {
     int opt;
+#ifdef P101_ERROR_CONTRACT_TESTING
+    const char *forced_option;
+#endif
 
     P101_TRACE_SCOPE(env);
     opterr = 0;
+#ifdef P101_ERROR_CONTRACT_TESTING
+    forced_option = getenv("P101_ERROR_CONTRACT_TEST_OPTION");
+#endif
 
     if(argc == 2 && p101_strcmp(env, argv[1], "--help") == 0)
     {
         p101_error_contract_usage(env, err, argv[0], EXIT_SUCCESS, NULL);
     }
 
-    while((opt = p101_getopt(env, argc, argv, ":hjqvi:C:F:")) != -1 && p101_error_has_no_error(err))
+    while(
+#ifdef P101_ERROR_CONTRACT_TESTING
+        (opt = (forced_option == NULL) ? p101_getopt(env, argc, argv, ":hjqSvi:C:F:") : (unsigned char)*forced_option) != -1 &&
+#else
+        (opt = p101_getopt(env, argc, argv, ":hjqSvi:C:F:")) != -1 &&
+#endif
+        p101_error_has_no_error(err))
     {
+#ifdef P101_ERROR_CONTRACT_TESTING
+        forced_option = NULL;
+#endif
         switch(opt)
         {
             case 'h':
@@ -42,6 +57,11 @@ void p101_error_contract_parse_arguments(const struct p101_env *env, struct p101
             case 'q':
             {
                 args->quiet = true;
+                break;
+            }
+            case 'S':
+            {
+                args->strict_sequence = true;
                 break;
             }
             case 'v':
@@ -68,7 +88,7 @@ void p101_error_contract_parse_arguments(const struct p101_env *env, struct p101
             {
                 char msg[MSG_LEN];
 
-                p101_snprintf(env, err, msg, sizeof(msg), "Option '-%c' requires an argument.", optopt ? optopt : '?');
+                p101_snprintf(env, err, msg, sizeof(msg), "Option '-%c' requires an argument.", optopt);
                 P101_ERROR_RAISE_USER(err, msg, ERR_USAGE);
                 break;
             }
@@ -144,11 +164,12 @@ _Noreturn void p101_error_contract_usage(const struct p101_env *env, struct p101
         p101_fprintf(env, err, stream, "%s\n\n", message);
     }
 
-    p101_fprintf(env, err, stream, "Usage: %s [-h] [-j] [-q] [-v] [-i <facts.tsv>] [-C <compile_commands.json>] [-F <p101-wrapper-audit>] [path ...]\n", program_name);
+    p101_fprintf(env, err, stream, "Usage: %s [-h] [-j] [-q] [-S] [-v] [-i <facts.tsv>] [-C <compile_commands.json>] [-F <p101-wrapper-audit>] [path ...]\n", program_name);
     p101_fputs(env, err, "\nChecks p101 error-handling contracts in C source files.\n\n", stream);
     p101_fputs(env, err, "Options:\n", stream);
     p101_fputs(env, err, "  -j        Emit JSON findings and summary.\n", stream);
     p101_fputs(env, err, "  -q        Quiet: print only findings, not the clean summary.\n", stream);
+    p101_fputs(env, err, "  -S        Strict sequencing: report unchecked chains of fallible calls.\n", stream);
     p101_fputs(env, err, "  -v        Show the fact command on stderr.\n", stream);
     p101_fputs(env, err, "  -i <file> Read a reusable P101FACT v2 snapshot instead of invoking Clang.\n", stream);
     p101_fputs(env, err, "  -C <file> Compile database passed to p101-wrapper-audit.\n", stream);

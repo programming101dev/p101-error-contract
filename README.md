@@ -34,7 +34,12 @@ If no path is supplied, `src` is scanned.
 | `P101-ERR-001` | A p101 wrapper call or `P101_TRACE` appears before a visible `p101_env` / `env` contract in the current function. |
 | `P101-ERR-002` | A fallible p101 wrapper call or p101 error macro appears before a visible `p101_error` / `err` contract in the current function. |
 | `P101-ERR-003` | A fallible p101 wrapper passes `NULL` in the standard error-object position without documenting an intentional best-effort boundary. |
-| `P101-ERR-004` | A second fallible p101 call is reachable on the same Clang statement path before the prior error state is checked or returned. |
+| `P101-ERR-004` | With `-S`, a second fallible p101 call is reachable on the same Clang statement path before the prior error state is checked or returned. |
+
+`P101-ERR-004` is intentionally strict. Enable it with `-S` when code must
+preserve the first failure and stop before any later fallible side effect. The
+default contract accepts the common p101 boundary style where an error object
+remains set across a short sequence and is checked or returned at the boundary.
 
 For a deliberately fallible boolean probe where failure *is* the result rather
 than an error to report, place

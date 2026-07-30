@@ -53,7 +53,7 @@ void p101_error_contract_load_facts(const struct p101_env *env, struct p101_erro
         goto done;
     }
 
-    while(p101_fgets(env, err, line, sizeof(line), stream) != NULL && p101_error_has_no_error(err))
+    while(p101_fgets(env, err, line, sizeof(line), stream) != NULL)
     {
         struct p101_c_fact      fact;
         enum p101_c_fact_status status;
@@ -70,10 +70,7 @@ void p101_error_contract_load_facts(const struct p101_env *env, struct p101_erro
         }
         if(status != P101_C_FACT_OK)
         {
-            if(p101_error_has_no_error(err))
-            {
-                P101_ERROR_RAISE_USER(err, "p101-wrapper-audit emitted an invalid fact record.", ERR_USAGE);
-            }
+            P101_ERROR_RAISE_USER(err, "p101-wrapper-audit emitted an invalid fact record.", ERR_USAGE);
             break;
         }
 
@@ -98,14 +95,9 @@ void p101_error_contract_load_facts(const struct p101_env *env, struct p101_erro
     if(!is_pipe)
     {
         p101_fclose(env, err, stream);
-        if(p101_error_has_error(err))
-        {
-            stream = NULL;
-            goto done;
-        }
     }
     stream = NULL;
-    if(fact_count == 0U && p101_error_has_no_error(err))
+    if(fact_count == 0U)
     {
         P101_ERROR_RAISE_USER(err, "The fact stream did not contain any p101 C facts.", ERR_USAGE);
     }
@@ -259,18 +251,23 @@ static void set_function_contract(const struct p101_env *env, struct contract_mo
         struct contract_function *function;
 
         function = &model->functions[i];
-        if(function->line == fact->line && p101_strcmp(env, function->path, fact->path) == 0)
+        if(function->line != fact->line)
         {
-            if(is_env)
-            {
-                function->has_env_contract = true;
-            }
-            else
-            {
-                function->has_error_contract = true;
-            }
-            break;
+            continue;
         }
+        if(p101_strcmp(env, function->path, fact->path) != 0)
+        {
+            continue;
+        }
+        if(is_env)
+        {
+            function->has_env_contract = true;
+        }
+        else
+        {
+            function->has_error_contract = true;
+        }
+        break;
     }
 }
 
@@ -283,12 +280,16 @@ static bool fact_line_is_complete(const struct p101_env *env, struct p101_error 
     complete = true;
     length   = p101_strlen(env, line);
 
-    if(length == READ_BUF_LEN - 1U && p101_strchr(env, line, '\n') == NULL)
+    if(length != READ_BUF_LEN - 1U || p101_strchr(env, line, '\n') != NULL)
+    {
+        goto done;
+    }
+
     {
         char discard[READ_BUF_LEN];
 
         complete = false;
-        while(p101_error_has_no_error(err) && p101_fgets(env, err, discard, sizeof(discard), stream) != NULL)
+        while(p101_fgets(env, err, discard, sizeof(discard), stream) != NULL)
         {
             if(p101_strchr(env, discard, '\n') != NULL)
             {
@@ -297,6 +298,7 @@ static bool fact_line_is_complete(const struct p101_env *env, struct p101_error 
         }
     }
 
+done:
     return complete;
 }
 
@@ -305,15 +307,35 @@ static void copy_text(const struct p101_env *env, char *dst, size_t dst_size, co
     P101_TRACE_SCOPE(env);
     if(dst_size == 0U)
     {
-        return;
+        goto done;
     }
 
     if(src == NULL)
     {
         dst[0] = '\0';
-        return;
+        goto done;
     }
 
     p101_strncpy(env, dst, src, dst_size - 1U);
     dst[dst_size - 1U] = '\0';
+
+done:
+    return;
 }
+
+#ifdef P101_ERROR_CONTRACT_TESTING
+void p101_error_contract_test_apply_fact(const struct p101_env *env, struct p101_error *err, struct contract_model *model, const struct p101_c_fact *fact)
+{
+    apply_fact(env, err, model, fact);
+}
+
+bool p101_error_contract_test_fact_line_complete(const struct p101_env *env, struct p101_error *err, FILE *stream, char *line)
+{
+    return fact_line_is_complete(env, err, stream, line);
+}
+
+void p101_error_contract_test_copy_text(const struct p101_env *env, char *dst, size_t dst_size, const char *src)
+{
+    copy_text(env, dst, dst_size, src);
+}
+#endif

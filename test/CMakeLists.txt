@@ -13,7 +13,7 @@ if (P101_TEST_COVERAGE)
     set(_COV --coverage)
 endif ()
 
-set(P101_LIBS p101_error p101_env p101_c p101_c_facts p101_posix p101_unix p101_convert)
+set(P101_LIBS p101_error p101_env p101_tool_event p101_c p101_c_facts p101_posix p101_unix p101_convert)
 set(P101_PUBLIC_INCLUDE_DIRS "" CACHE STRING "Extra p101 include dirs")
 set(P101_PUBLIC_LINK_DIRS "" CACHE STRING "Extra p101 link dirs")
 separate_arguments(P101_PUBLIC_INCLUDE_DIRS_LIST NATIVE_COMMAND "${P101_PUBLIC_INCLUDE_DIRS}")
@@ -46,4 +46,25 @@ function(p101_add_test name)
 endfunction()
 
 p101_add_test(test_p101_string test_p101_string.c)
-p101_add_test(test_fact_command test_fact_command.c ../src/fact_command.c)
+p101_add_test(test_fact_command
+        test_fact_command.c
+        ../src/cli.c
+        ../src/contract.c
+        ../src/contract_model.c
+        ../src/fact_command.c
+        ../src/report.c)
+target_compile_definitions(test_fact_command PRIVATE P101_ERROR_CONTRACT_TESTING=1)
+
+add_executable(p101_error_contract_coverage_cli
+        ../src/cli.c
+        ../src/contract.c
+        ../src/contract_model.c
+        ../src/fact_command.c
+        ../src/main.c
+        ../src/report.c)
+target_include_directories(p101_error_contract_coverage_cli PRIVATE ${_P101_INC_DIRS} "${CMAKE_CURRENT_SOURCE_DIR}/../include")
+target_link_libraries(p101_error_contract_coverage_cli PRIVATE ${_P101_RESOLVED} m)
+target_compile_options(p101_error_contract_coverage_cli PRIVATE ${_COV})
+target_link_options(p101_error_contract_coverage_cli PRIVATE ${_COV})
+target_compile_definitions(p101_error_contract_coverage_cli PRIVATE P101_ERROR_CONTRACT_TESTING=1)
+add_test(NAME test_cli COMMAND bash "${CMAKE_CURRENT_SOURCE_DIR}/test_cli.sh" "$<TARGET_FILE:p101_error_contract_coverage_cli>")

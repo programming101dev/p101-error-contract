@@ -7,7 +7,6 @@
 #include <p101_c_facts/project.h>
 #include <p101_posix/p101_unistd.h>
 #include <stdbool.h>
-#include <unistd.h>
 
 static void        append_checked(const struct p101_env *env, struct p101_error *err, char *command, size_t command_size, const char *text);
 static void        append_char_checked(const struct p101_env *env, struct p101_error *err, char *command, size_t command_size, char ch);
@@ -16,7 +15,6 @@ static void        append_cflag(const struct p101_env *env, struct p101_error *e
 static void        append_compile_database(const struct p101_env *env, struct p101_error *err, char *command, size_t command_size, const char *path);
 static void        append_include_roots(const struct p101_env *env, struct p101_error *err, char *command, size_t command_size, const char *path);
 static const char *choose_fact_tool(const struct p101_env *env, struct p101_error *err, const struct arguments *args);
-static bool        executable_exists(const struct p101_env *env, struct p101_error *err, const char *path);
 
 static void append_checked(const struct p101_env *env, struct p101_error *err, char *command, size_t command_size, const char *text)
 {
@@ -100,57 +98,24 @@ static const char *choose_fact_tool(const struct p101_env *env, struct p101_erro
     const char *tool;
 
     P101_TRACE_SCOPE(env);
-    tool = args->fact_tool_path;
-    if(tool != NULL && tool[0] != '\0')
+    if(args->fact_tool_path != NULL && args->fact_tool_path[0] != '\0')
     {
-        goto done;
+        return args->fact_tool_path;
     }
 
     tool = p101_getenv(env, "P101_ERROR_CONTRACT_FACT_TOOL");
     if(tool != NULL && tool[0] != '\0')
     {
-        goto done;
+        return tool;
     }
 
     tool = p101_getenv(env, "P101_WRAPPER_AUDIT");
     if(tool != NULL && tool[0] != '\0')
     {
-        goto done;
+        return tool;
     }
 
-    tool = "../p101-wrapper-audit/p101-wrapper-audit";
-    if(executable_exists(env, err, tool))
-    {
-        goto done;
-    }
-
-    tool = "../../programs/p101-wrapper-audit/p101-wrapper-audit";
-    if(executable_exists(env, err, tool))
-    {
-        goto done;
-    }
-
-    tool = "p101-wrapper-audit";
-
-done:
-    return tool;
-}
-
-static bool executable_exists(const struct p101_env *env, struct p101_error *err, const char *path)
-{
-    bool ret_val;
-
-    P101_TRACE_SCOPE(env);
-    ret_val = false;
-    if(p101_access(env, err, path, X_OK) == 0)
-    {
-        ret_val = true;
-    }
-    if(p101_error_has_error(err))
-    {
-        p101_error_reset(err);
-    }
-    return ret_val;
+    return "p101-wrapper-audit";
 }
 
 void p101_error_contract_build_fact_command(const struct p101_env *env, struct p101_error *err, char *command, size_t command_size, const struct arguments *args)

@@ -18,6 +18,7 @@ struct arguments
     size_t      path_count;
     bool        json;
     bool        quiet;
+    bool        strict_sequence;
     bool        verbose;
 };
 
