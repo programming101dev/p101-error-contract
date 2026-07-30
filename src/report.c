@@ -7,7 +7,7 @@ static void json_string(const struct p101_env *env, struct p101_error *err, cons
 
 void p101_error_contract_report_begin(const struct p101_env *env, struct p101_error *err, struct contract_report *report, const struct arguments *args)
 {
-    P101_TRACE(env);
+    P101_TRACE_SCOPE(env);
     p101_memset(env, report, 0, sizeof(*report));
     report->json               = args->json;
     report->quiet              = args->quiet;
@@ -21,7 +21,7 @@ void p101_error_contract_report_begin(const struct p101_env *env, struct p101_er
 
 void p101_error_contract_report_finding(const struct p101_env *env, struct p101_error *err, struct contract_report *report, const char *code, const char *path, size_t line, const char *function_name, const char *message)
 {
-    P101_TRACE(env);
+    P101_TRACE_SCOPE(env);
     report->findings++;
 
     if(report->json)
@@ -55,7 +55,7 @@ void p101_error_contract_report_finding(const struct p101_env *env, struct p101_
 
 void p101_error_contract_report_end(const struct p101_env *env, struct p101_error *err, struct contract_report *report)
 {
-    P101_TRACE(env);
+    P101_TRACE_SCOPE(env);
 
     if(report->json)
     {
@@ -69,7 +69,7 @@ void p101_error_contract_report_end(const struct p101_env *env, struct p101_erro
 
 static void json_string(const struct p101_env *env, struct p101_error *err, const char *text)
 {
-    P101_TRACE(env);
+    P101_TRACE_SCOPE(env);
     p101_fputs(env, err, "\"", stdout);
 
     if(text != NULL)

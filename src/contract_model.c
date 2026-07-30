@@ -15,14 +15,16 @@ static void copy_text(const struct p101_env *env, char *dst, size_t dst_size, co
 
 void p101_error_contract_load_facts(const struct p101_env *env, struct p101_error *err, const struct arguments *args, struct contract_model *model)
 {
-    FILE *stream;
-    char  command[MAX_COMMAND];
-    char  line[READ_BUF_LEN];
-    bool  is_pipe;
+    FILE  *stream;
+    char   command[MAX_COMMAND];
+    char   line[READ_BUF_LEN];
+    bool   is_pipe;
+    size_t fact_count;
 
-    P101_TRACE(env);
-    stream  = NULL;
-    is_pipe = args->facts_path == NULL;
+    P101_TRACE_SCOPE(env);
+    stream     = NULL;
+    is_pipe    = args->facts_path == NULL;
+    fact_count = 0U;
     if(is_pipe)
     {
         p101_error_contract_build_fact_command(env, err, command, sizeof(command), args);
@@ -76,6 +78,7 @@ void p101_error_contract_load_facts(const struct p101_env *env, struct p101_erro
         }
 
         apply_fact(env, err, model, &fact);
+        fact_count++;
     }
 
     if(p101_error_has_error(err))
@@ -102,6 +105,10 @@ void p101_error_contract_load_facts(const struct p101_env *env, struct p101_erro
         }
     }
     stream = NULL;
+    if(fact_count == 0U && p101_error_has_no_error(err))
+    {
+        P101_ERROR_RAISE_USER(err, "The fact stream did not contain any p101 C facts.", ERR_USAGE);
+    }
 
 done:
     if(stream != NULL)
@@ -119,7 +126,7 @@ done:
 
 static void apply_fact(const struct p101_env *env, struct p101_error *err, struct contract_model *model, const struct p101_c_fact *fact)
 {
-    P101_TRACE(env);
+    P101_TRACE_SCOPE(env);
 
 #ifdef __clang__
     #pragma clang diagnostic push
@@ -177,6 +184,18 @@ static void apply_fact(const struct p101_env *env, struct p101_error *err, struc
             {
                 add_event(env, err, model, CONTRACT_EVENT_ERROR_OPTIONAL, fact);
             }
+            else if(p101_strcmp(env, fact->value, "ERROR_DISCARD") == 0)
+            {
+                add_event(env, err, model, CONTRACT_EVENT_ERROR_DISCARD, fact);
+            }
+            else if(p101_strcmp(env, fact->value, "ERROR_PROPAGATED") == 0)
+            {
+                add_event(env, err, model, CONTRACT_EVENT_ERROR_PROPAGATED, fact);
+            }
+            else if(p101_strcmp(env, fact->value, "ERROR_UNCHECKED_CHAIN") == 0)
+            {
+                add_event(env, err, model, CONTRACT_EVENT_ERROR_UNCHECKED_CHAIN, fact);
+            }
             break;
         default:
             break;
@@ -190,7 +209,7 @@ static void add_function(const struct p101_env *env, struct p101_error *err, str
 {
     struct contract_function *function;
 
-    P101_TRACE(env);
+    P101_TRACE_SCOPE(env);
     if(model->function_count >= MAX_FACT_FUNCTIONS)
     {
         P101_ERROR_RAISE_USER(err, "Too many functions in fact stream.", ERR_TOOL);
@@ -210,7 +229,7 @@ static void add_event(const struct p101_env *env, struct p101_error *err, struct
 {
     struct contract_event *event;
 
-    P101_TRACE(env);
+    P101_TRACE_SCOPE(env);
     if(model->event_count >= MAX_FACT_EVENTS)
     {
         P101_ERROR_RAISE_USER(err, "Too many events in fact stream.", ERR_TOOL);
@@ -234,7 +253,7 @@ done:
 
 static void set_function_contract(const struct p101_env *env, struct contract_model *model, const struct p101_c_fact *fact, bool is_env)
 {
-    P101_TRACE(env);
+    P101_TRACE_SCOPE(env);
     for(size_t i = 0U; i < model->function_count; i++)
     {
         struct contract_function *function;
@@ -260,7 +279,7 @@ static bool fact_line_is_complete(const struct p101_env *env, struct p101_error 
     bool   complete;
     size_t length;
 
-    P101_TRACE(env);
+    P101_TRACE_SCOPE(env);
     complete = true;
     length   = p101_strlen(env, line);
 
@@ -283,7 +302,7 @@ static bool fact_line_is_complete(const struct p101_env *env, struct p101_error 
 
 static void copy_text(const struct p101_env *env, char *dst, size_t dst_size, const char *src)
 {
-    P101_TRACE(env);
+    P101_TRACE_SCOPE(env);
     if(dst_size == 0U)
     {
         return;

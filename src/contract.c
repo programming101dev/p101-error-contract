@@ -21,7 +21,7 @@ int p101_error_contract_run(const struct p101_env *env, struct p101_error *err, 
     struct contract_report report;
     int                    ret_val;
 
-    P101_TRACE(env);
+    P101_TRACE_SCOPE(env);
     ret_val = EXIT_TROUBLE;
     model   = (struct contract_model *)p101_calloc(env, err, 1U, sizeof(*model));
     if(model == NULL || p101_error_has_error(err))
@@ -57,7 +57,7 @@ done:
 
 static void analyze_model(const struct p101_env *env, struct p101_error *err, const struct contract_model *model, struct contract_report *report)
 {
-    P101_TRACE(env);
+    P101_TRACE_SCOPE(env);
     for(size_t i = 0U; i < model->function_count && p101_error_has_no_error(err); i++)
     {
         struct contract_function function;
@@ -88,6 +88,16 @@ static void analyze_model(const struct p101_env *env, struct p101_error *err, co
                 p101_error_contract_report_finding(env, err, report, "P101-ERR-002", event->path, event->line, function.name, "fallible p101 call or error macro appears before a visible p101_error/err contract");
                 function.error_reported = true;
             }
+
+            if(event->kind == CONTRACT_EVENT_ERROR_DISCARD && !error_is_explicitly_optional(env, model, &function, event, end_line))
+            {
+                p101_error_contract_report_finding(env, err, report, "P101-ERR-003", event->path, event->line, function.name, "fallible p101 call passes NULL instead of an error object; handle the failure or document the intentional best-effort boundary");
+            }
+
+            if(event->kind == CONTRACT_EVENT_ERROR_UNCHECKED_CHAIN && !error_is_explicitly_optional(env, model, &function, event, end_line))
+            {
+                p101_error_contract_report_finding(env, err, report, "P101-ERR-004", event->path, event->line, function.name, "another fallible p101 call is reachable before the previous error state is checked or returned");
+            }
         }
     }
 }
@@ -96,7 +106,7 @@ static size_t next_function_line(const struct p101_env *env, const struct contra
 {
     size_t line;
 
-    P101_TRACE(env);
+    P101_TRACE_SCOPE(env);
     line = (size_t)-1;
     for(size_t i = 0U; i < model->function_count; i++)
     {
@@ -114,7 +124,7 @@ static size_t next_function_line(const struct p101_env *env, const struct contra
 
 static bool event_is_in_function(const struct p101_env *env, const struct contract_event *event, const struct contract_function *function, size_t end_line)
 {
-    P101_TRACE(env);
+    P101_TRACE_SCOPE(env);
     if(p101_strcmp(env, event->path, function->path) != 0)
     {
         return false;
@@ -128,7 +138,7 @@ static bool event_is_in_function(const struct p101_env *env, const struct contra
 
 static bool visible_env_before_event(const struct p101_env *env, const struct contract_model *model, const struct contract_function *function, const struct contract_event *event, size_t end_line)
 {
-    P101_TRACE(env);
+    P101_TRACE_SCOPE(env);
     if(function->has_env_contract)
     {
         return true;
@@ -150,7 +160,7 @@ static bool visible_env_before_event(const struct p101_env *env, const struct co
 
 static bool visible_error_before_event(const struct p101_env *env, const struct contract_model *model, const struct contract_function *function, const struct contract_event *event, size_t end_line)
 {
-    P101_TRACE(env);
+    P101_TRACE_SCOPE(env);
     if(function->has_error_contract)
     {
         return true;
@@ -172,7 +182,7 @@ static bool visible_error_before_event(const struct p101_env *env, const struct 
 
 static bool error_is_explicitly_optional(const struct p101_env *env, const struct contract_model *model, const struct contract_function *function, const struct contract_event *event, size_t end_line)
 {
-    P101_TRACE(env);
+    P101_TRACE_SCOPE(env);
     for(size_t i = 0U; i < model->event_count; i++)
     {
         const struct contract_event *candidate;

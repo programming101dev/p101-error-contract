@@ -10,7 +10,7 @@
 
 void p101_error_contract_arguments_init(const struct p101_env *env, struct arguments *args)
 {
-    P101_TRACE(env);
+    P101_TRACE_SCOPE(env);
     p101_memset(env, args, 0, sizeof(*args));
 }
 
@@ -18,7 +18,7 @@ void p101_error_contract_parse_arguments(const struct p101_env *env, struct p101
 {
     int opt;
 
-    P101_TRACE(env);
+    P101_TRACE_SCOPE(env);
     opterr = 0;
 
     if(argc == 2 && p101_strcmp(env, argv[1], "--help") == 0)
@@ -112,7 +112,7 @@ void p101_error_contract_parse_arguments(const struct p101_env *env, struct p101
 
 void p101_error_contract_check_arguments(const struct p101_env *env, struct p101_error *err, const struct arguments *args)
 {
-    P101_TRACE(env);
+    P101_TRACE_SCOPE(env);
 
     if(args->fact_tool_path != NULL && args->fact_tool_path[0] == '\0')
     {
@@ -136,7 +136,7 @@ _Noreturn void p101_error_contract_usage(const struct p101_env *env, struct p101
 {
     FILE *stream;
 
-    P101_TRACE(env);
+    P101_TRACE_SCOPE(env);
     stream = (exit_code == EXIT_SUCCESS) ? stdout : stderr;
 
     if(message != NULL)

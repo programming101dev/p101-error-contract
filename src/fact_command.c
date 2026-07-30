@@ -23,7 +23,7 @@ static void append_checked(const struct p101_env *env, struct p101_error *err, c
     size_t used;
     size_t extra;
 
-    P101_TRACE(env);
+    P101_TRACE_SCOPE(env);
     used  = p101_strlen(env, command);
     extra = p101_strlen(env, text);
 
@@ -44,7 +44,7 @@ static void append_char_checked(const struct p101_env *env, struct p101_error *e
 {
     char text[2];
 
-    P101_TRACE(env);
+    P101_TRACE_SCOPE(env);
     text[0] = ch;
     text[1] = '\0';
     append_checked(env, err, command, command_size, text);
@@ -52,7 +52,7 @@ static void append_char_checked(const struct p101_env *env, struct p101_error *e
 
 static void append_shell_quoted(const struct p101_env *env, struct p101_error *err, char *command, size_t command_size, const char *text)
 {
-    P101_TRACE(env);
+    P101_TRACE_SCOPE(env);
     append_char_checked(env, err, command, command_size, '\'');
     for(size_t i = 0U; text[i] != '\0' && p101_error_has_no_error(err); i++)
     {
@@ -70,14 +70,14 @@ static void append_shell_quoted(const struct p101_env *env, struct p101_error *e
 
 static void append_cflag(const struct p101_env *env, struct p101_error *err, char *command, size_t command_size, const char *flag)
 {
-    P101_TRACE(env);
+    P101_TRACE_SCOPE(env);
     append_checked(env, err, command, command_size, " --cflag=");
     append_shell_quoted(env, err, command, command_size, flag);
 }
 
 static void append_compile_database(const struct p101_env *env, struct p101_error *err, char *command, size_t command_size, const char *path)
 {
-    P101_TRACE(env);
+    P101_TRACE_SCOPE(env);
     append_checked(env, err, command, command_size, " --compile-db=");
     append_shell_quoted(env, err, command, command_size, path);
 }
@@ -86,7 +86,7 @@ static void append_include_roots(const struct p101_env *env, struct p101_error *
 {
     char include_arg[CONTRACT_PATH_LEN];
 
-    P101_TRACE(env);
+    P101_TRACE_SCOPE(env);
     p101_snprintf(env, err, include_arg, sizeof(include_arg), "-I%s", path);
     append_cflag(env, err, command, command_size, include_arg);
     p101_snprintf(env, err, include_arg, sizeof(include_arg), "-I%s/include", path);
@@ -99,7 +99,7 @@ static const char *choose_fact_tool(const struct p101_env *env, struct p101_erro
 {
     const char *tool;
 
-    P101_TRACE(env);
+    P101_TRACE_SCOPE(env);
     tool = args->fact_tool_path;
     if(tool != NULL && tool[0] != '\0')
     {
@@ -140,7 +140,7 @@ static bool executable_exists(const struct p101_env *env, struct p101_error *err
 {
     bool ret_val;
 
-    P101_TRACE(env);
+    P101_TRACE_SCOPE(env);
     ret_val = false;
     if(p101_access(env, err, path, X_OK) == 0)
     {
@@ -159,7 +159,7 @@ void p101_error_contract_build_fact_command(const struct p101_env *env, struct p
     const char *compile_db;
     const char *tool;
 
-    P101_TRACE(env);
+    P101_TRACE_SCOPE(env);
     command[0] = '\0';
     tool       = choose_fact_tool(env, err, args);
     append_shell_quoted(env, err, command, command_size, tool);

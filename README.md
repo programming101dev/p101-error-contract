@@ -33,13 +33,15 @@ If no path is supplied, `src` is scanned.
 | --- | --- |
 | `P101-ERR-001` | A p101 wrapper call or `P101_TRACE` appears before a visible `p101_env` / `env` contract in the current function. |
 | `P101-ERR-002` | A fallible p101 wrapper call or p101 error macro appears before a visible `p101_error` / `err` contract in the current function. |
+| `P101-ERR-003` | A fallible p101 wrapper passes `NULL` in the standard error-object position without documenting an intentional best-effort boundary. |
+| `P101-ERR-004` | A second fallible p101 call is reachable on the same Clang statement path before the prior error state is checked or returned. |
 
 For a deliberately fallible boolean probe where failure *is* the result rather
 than an error to report, place
 `/* P101_ERROR_CONTRACT_ALLOW_NO_ERROR: reason */` immediately before the
 probe. The exception applies only to a call on that line or the immediately
-following line and is visible to reviewers; do not use it to silence ordinary
-error propagation.
+following line, and also admits an intentional `NULL` error argument. It is
+visible to reviewers; do not use it to silence ordinary error propagation.
 
 The checker accepts either a signature-level contract discovered from Clang AST
 facts:
@@ -92,12 +94,21 @@ or compile database are used, the contract report is partial or fails as tool
 trouble. The contract judgment is still a teaching heuristic, not a proof of all
 possible C control flow.
 
+The flow check follows calls with the standard fallible wrapper contract
+(`env, err, ...`), splits ordinary `if` branches, and follows sequential
+compound statements. A function return propagates its existing `err` state;
+the tool does not guess whether a numeric return value means success or
+failure. It deliberately does not invent loop back-edges or switch fallthrough
+paths; those require a full compiler CFG and remain a documented blind spot.
+
 Direct libc calls are outside this tool's job; use `p101-wrapper-audit` for
 that. Third-party code is only checked if you ask this tool to scan it, and it
 may not follow p101 conventions.
 
 The `needs_env` and `needs_error` decisions come from the resolved callee
-signature recorded in P101FACT v2. C parsing belongs to
+signature recorded in P101FACT v2. The discard check relies on the p101 API
+convention that fallible wrappers take `env, err` as their first two arguments.
+C parsing belongs to
 `p101-wrapper-audit`; fact parsing belongs to `lib_c_facts`; this tool owns only
 the error-contract policy.
 
