@@ -102,11 +102,12 @@ trouble. The contract judgment is still a teaching heuristic, not a proof of all
 possible C control flow.
 
 The flow check follows calls with the standard fallible wrapper contract
-(`env, err, ...`), splits ordinary `if` branches, and follows sequential
-compound statements. A function return propagates its existing `err` state;
-the tool does not guess whether a numeric return value means success or
-failure. It deliberately does not invent loop back-edges or switch fallthrough
-paths; those require a full compiler CFG and remain a documented blind spot.
+(`env, err, ...`), recognizes explicit error guards, and follows conservative
+statement-local sequences. A function return propagates its existing `err`
+state; the tool does not guess whether a numeric return value means success or
+failure. It deliberately does not invent loop back-edges, merge arbitrary
+branches, or model switch fallthrough; those require a full compiler CFG and
+remain documented blind spots.
 
 Direct libc calls are outside this tool's job; use `p101-wrapper-audit` for
 that. Third-party code is only checked if you ask this tool to scan it, and it
