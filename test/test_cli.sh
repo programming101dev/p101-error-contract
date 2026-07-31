@@ -35,8 +35,25 @@ expect 1 -v -F "$facts_tool" "$work/sample.c"
 grep -q 'P101-ERR-005' "$work/stdout"
 grep -q 'P101-ERR-006' "$work/stdout"
 expect 1 -S -F "$facts_tool" "$work/sample.c"
+for diagnostic_id in \
+  P101-ERR-001 \
+  P101-ERR-002 \
+  P101-ERR-003 \
+  P101-ERR-004 \
+  P101-ERR-005 \
+  P101-ERR-006
+do
+  grep -q "$diagnostic_id" "$work/stdout"
+done
 expect 1 -j -v -F "$facts_tool" "$work/sample.c"
 expect 1 -q -F "$facts_tool" "$work/sample.c"
+cat >"$work/balanced.tsv" <<'FACTS'
+P101FACT	2	CALL	balanced.c	balanced	0	1	p101_error_create	0	0
+P101FACT	2	CALL	balanced.c	balanced	0	2	p101_error_destroy	0	0
+P101FACT	2	CALL	balanced.c	balanced	0	3	p101_env_create	0	0
+P101FACT	2	CALL	balanced.c	balanced	0	4	p101_env_destroy	0	0
+FACTS
+expect 0 -i "$work/balanced.tsv"
 expect 2 -i ''
 expect 2 -C ''
 expect 2 -F ''

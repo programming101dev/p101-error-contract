@@ -249,6 +249,7 @@ static bool event_needs_error_contract(const struct contract_event *event)
 #ifdef P101_ERROR_CONTRACT_TESTING
 void p101_error_contract_test_analyze(const struct p101_env *env, struct p101_error *err, const struct contract_model *model, struct contract_report *report)
 {
+    analyze_ownership(env, err, model, report);
     analyze_model(env, err, model, report, true);
 }
 #endif

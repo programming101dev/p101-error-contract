@@ -5,7 +5,6 @@
 #include <p101_c/p101_stdlib.h>
 #include <p101_c/p101_string.h>
 #include <p101_c_facts/project.h>
-#include <p101_posix/p101_unistd.h>
 #include <stdbool.h>
 
 static void        append_checked(const struct p101_env *env, struct p101_error *err, char *command, size_t command_size, const char *text);
@@ -14,7 +13,7 @@ static void        append_shell_quoted(const struct p101_env *env, struct p101_e
 static void        append_cflag(const struct p101_env *env, struct p101_error *err, char *command, size_t command_size, const char *flag);
 static void        append_compile_database(const struct p101_env *env, struct p101_error *err, char *command, size_t command_size, const char *path);
 static void        append_include_roots(const struct p101_env *env, struct p101_error *err, char *command, size_t command_size, const char *path);
-static const char *choose_fact_tool(const struct p101_env *env, struct p101_error *err, const struct arguments *args);
+static const char *choose_fact_tool(const struct p101_env *env, const struct arguments *args);
 
 static void append_checked(const struct p101_env *env, struct p101_error *err, char *command, size_t command_size, const char *text)
 {
@@ -93,7 +92,7 @@ static void append_include_roots(const struct p101_env *env, struct p101_error *
     append_cflag(env, err, command, command_size, include_arg);
 }
 
-static const char *choose_fact_tool(const struct p101_env *env, struct p101_error *err, const struct arguments *args)
+static const char *choose_fact_tool(const struct p101_env *env, const struct arguments *args)
 {
     const char *tool;
 
@@ -126,7 +125,7 @@ void p101_error_contract_build_fact_command(const struct p101_env *env, struct p
 
     P101_TRACE_SCOPE(env);
     command[0] = '\0';
-    tool       = choose_fact_tool(env, err, args);
+    tool       = choose_fact_tool(env, args);
     append_shell_quoted(env, err, command, command_size, tool);
     append_checked(env, err, command, command_size, " --emit-module-facts");
     compile_db = args->compile_db_path;

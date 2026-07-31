@@ -11,8 +11,8 @@
 #include <p101_c/p101_string.h>
 #include <p101_env/env.h>
 #include <p101_error/error.h>
-#include <p101_posix/p101_stdlib.h>
-#include <p101_posix/p101_unistd.h>
+#include <p101_filesystem/filesystem.h>
+#include <p101_process/process.h>
 
 static struct p101_error *error;
 static struct p101_env   *env;
@@ -114,6 +114,12 @@ static void test_model_fact_kinds_and_limits(void)
     apply_kind(&model, P101_C_FACT_KIND_CALL, "ignored", 12U, false, false);
     apply_kind(&model, P101_C_FACT_KIND_CALL, "error-only", 12U, false, true);
     apply_kind(&model, P101_C_FACT_KIND_CALL, "call", 13U, true, true);
+    apply_kind(&model, P101_C_FACT_KIND_CALL, "p101_error_create", 14U, false, false);
+    apply_kind(&model, P101_C_FACT_KIND_CALL, "p101_error_create", 15U, false, false);
+    apply_kind(&model, P101_C_FACT_KIND_CALL, "p101_error_destroy", 16U, false, false);
+    apply_kind(&model, P101_C_FACT_KIND_CALL, "p101_env_create", 17U, false, false);
+    apply_kind(&model, P101_C_FACT_KIND_CALL, "p101_env_create", 18U, false, false);
+    apply_kind(&model, P101_C_FACT_KIND_CALL, "p101_env_destroy", 19U, false, false);
     for(size_t i = 0U; i < sizeof(notes) / sizeof(notes[0]); i++)
     {
         apply_kind(&model, P101_C_FACT_KIND_NOTE, notes[i], 10U + i, false, false);
@@ -137,6 +143,11 @@ static void test_model_fact_kinds_and_limits(void)
     p101_error_reset(error);
     model.event_count = MAX_FACT_EVENTS;
     apply_kind(&model, P101_C_FACT_KIND_CALL, "overflow", 1U, true, false);
+    TEST_ASSERT_TRUE(p101_error_has_error(error));
+    p101_error_reset(error);
+    model.ownership_file_count = MAX_FACT_FUNCTIONS;
+    p101_strncpy(env, model.ownership_files[0].path, "occupied.c", sizeof(model.ownership_files[0].path));
+    apply_kind(&model, P101_C_FACT_KIND_CALL, "p101_error_create", 1U, false, false);
     TEST_ASSERT_TRUE(p101_error_has_error(error));
     p101_error_reset(error);
 
@@ -230,6 +241,33 @@ static void test_analysis_reports_all_contract_findings(void)
     p101_error_contract_report_finding(env, error, &report, "id", "p", 1U, NULL, "message");
     p101_error_contract_report_finding(env, error, &report, "id", "p", 1U, "", "message");
     p101_error_contract_report_end(env, error, &report);
+}
+
+static void test_ownership_imbalance_findings(void)
+{
+    static struct contract_model model;
+    struct contract_report       report;
+    struct arguments             args;
+
+    p101_memset(env, &model, 0, sizeof(model));
+    p101_memset(env, &args, 0, sizeof(args));
+    model.ownership_file_count                 = 1U;
+    model.ownership_files[0].error_create_count = 2U;
+    model.ownership_files[0].error_destroy_count = 1U;
+    model.ownership_files[0].env_create_count   = 2U;
+    model.ownership_files[0].env_destroy_count  = 1U;
+    model.ownership_files[0].first_error_create_line = 10U;
+    model.ownership_files[0].first_env_create_line   = 20U;
+    p101_strncpy(env, model.ownership_files[0].path, "owner.c", sizeof(model.ownership_files[0].path));
+    p101_error_contract_report_begin(env, error, &report, &args);
+    p101_error_contract_test_analyze(env, error, &model, &report);
+    TEST_ASSERT_EQUAL_size_t(2U, report.findings);
+
+    model.ownership_files[0].error_destroy_count = 2U;
+    model.ownership_files[0].env_destroy_count   = 2U;
+    p101_error_contract_report_begin(env, error, &report, &args);
+    p101_error_contract_test_analyze(env, error, &model, &report);
+    TEST_ASSERT_EQUAL_size_t(0U, report.findings);
 }
 
 static void test_local_contracts_and_optional_boundaries(void)
@@ -396,6 +434,7 @@ int main(void)
     RUN_TEST(test_explicit_compile_database_precedes_source_paths);
     RUN_TEST(test_model_fact_kinds_and_limits);
     RUN_TEST(test_analysis_reports_all_contract_findings);
+    RUN_TEST(test_ownership_imbalance_findings);
     RUN_TEST(test_local_contracts_and_optional_boundaries);
     RUN_TEST(test_function_boundaries_and_unmatched_optional_marker);
     RUN_TEST(test_fact_command_selection_and_overflow);
