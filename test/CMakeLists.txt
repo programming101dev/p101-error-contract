@@ -3,6 +3,12 @@ cmake_minimum_required(VERSION 3.14)
 project(p101_tests C)
 enable_testing()
 
+if(POLICY CMP0083)
+    cmake_policy(SET CMP0083 NEW)
+    include(CheckPIESupported)
+    check_pie_supported()
+endif()
+
 add_library(unity STATIC unity/unity.c)
 target_include_directories(unity PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/unity")
 target_compile_options(unity PRIVATE -w)
