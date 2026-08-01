@@ -17,6 +17,18 @@
 static struct p101_error *error;
 static struct p101_env   *env;
 
+static size_t find_argument(const struct p101_tool_argv *command, const char *argument)
+{
+    for(size_t index = 0U; index < command->count; index++)
+    {
+        if(p101_strcmp(env, command->values[index], argument) == 0)
+        {
+            return index;
+        }
+    }
+    return command->count;
+}
+
 void setUp(void)
 {
     error = p101_error_create(false);
@@ -31,10 +43,10 @@ void tearDown(void)
 
 static void test_cflags_precede_all_positional_source_paths(void)
 {
-    struct arguments args;
-    char             command[MAX_COMMAND];
-    const char      *first_source;
-    const char      *cflag;
+    struct arguments      args;
+    struct p101_tool_argv command;
+    size_t                first_source;
+    size_t                cflag;
 
     p101_memset(env, &args, 0, sizeof(args));
     args.fact_tool_path = "p101-wrapper-audit";
@@ -42,24 +54,24 @@ static void test_cflags_precede_all_positional_source_paths(void)
     args.paths[1]       = "include";
     args.path_count     = 2U;
 
-    p101_error_contract_build_fact_command(env, error, command, sizeof(command), &args);
+    p101_error_contract_build_fact_argv(env, error, &command, &args);
 
     TEST_ASSERT_FALSE(p101_error_has_error(error));
-    cflag        = p101_strstr(env, command, " --cflag=");
-    first_source = p101_strstr(env, command, " 'src'");
-    TEST_ASSERT_NOT_NULL(cflag);
-    TEST_ASSERT_NOT_NULL(first_source);
+    cflag        = find_argument(&command, "--cflag=-Isrc");
+    first_source = find_argument(&command, "src");
+    TEST_ASSERT_TRUE(cflag < command.count);
+    TEST_ASSERT_TRUE(first_source < command.count);
     TEST_ASSERT_TRUE(cflag < first_source);
-    TEST_ASSERT_NULL(p101_strstr(env, first_source, "--cflag="));
-    TEST_ASSERT_NOT_NULL(p101_strstr(env, first_source, " 'include'"));
+    TEST_ASSERT_TRUE(find_argument(&command, "include") > first_source);
+    p101_tool_argv_destroy(env, &command);
 }
 
 static void test_explicit_compile_database_precedes_source_paths(void)
 {
-    struct arguments args;
-    char             command[MAX_COMMAND];
-    const char      *compile_db;
-    const char      *first_source;
+    struct arguments      args;
+    struct p101_tool_argv command;
+    size_t                compile_db;
+    size_t                first_source;
 
     p101_memset(env, &args, 0, sizeof(args));
     args.fact_tool_path  = "p101-wrapper-audit";
@@ -67,15 +79,18 @@ static void test_explicit_compile_database_precedes_source_paths(void)
     args.paths[0]        = "src";
     args.path_count      = 1U;
 
-    p101_error_contract_build_fact_command(env, error, command, sizeof(command), &args);
+    p101_error_contract_build_fact_argv(env, error, &command, &args);
 
     TEST_ASSERT_FALSE(p101_error_has_error(error));
-    compile_db   = p101_strstr(env, command, " --compile-db='/tmp/project with spaces/compile_commands.json'");
-    first_source = p101_strstr(env, command, " 'src'");
-    TEST_ASSERT_NOT_NULL(compile_db);
-    TEST_ASSERT_NOT_NULL(first_source);
+    compile_db   = find_argument(&command, "--compile-db");
+    first_source = find_argument(&command, "src");
+    TEST_ASSERT_TRUE(compile_db < command.count);
+    TEST_ASSERT_TRUE(compile_db + 1U < command.count);
+    TEST_ASSERT_EQUAL_STRING("/tmp/project with spaces/compile_commands.json", command.values[compile_db + 1U]);
+    TEST_ASSERT_TRUE(first_source < command.count);
     TEST_ASSERT_TRUE(compile_db < first_source);
-    TEST_ASSERT_NOT_NULL(p101_strstr(env, command, " --compile-db-only"));
+    TEST_ASSERT_TRUE(find_argument(&command, "--compile-db-only") < command.count);
+    p101_tool_argv_destroy(env, &command);
 }
 
 static void apply_kind(struct contract_model *model, enum p101_c_fact_kind kind, const char *value, size_t line, bool flag1, bool flag2)
@@ -359,49 +374,48 @@ static void test_fact_command_selection_and_overflow(void)
 {
     struct arguments             args;
     static struct contract_model model;
-    char                         command[MAX_COMMAND];
-    char                         tiny[2];
+    struct p101_tool_argv        command;
     char                         cwd[CONTRACT_PATH_LEN];
-    char                         long_tool[MAX_COMMAND + 1U];
 
     p101_memset(env, &args, 0, sizeof(args));
     p101_setenv(env, error, "P101_ERROR_CONTRACT_FACT_TOOL", "tool'a", 1);
-    p101_error_contract_build_fact_command(env, error, command, sizeof(command), &args);
-    TEST_ASSERT_NOT_NULL(p101_strstr(env, command, "'\\''"));
+    p101_error_contract_build_fact_argv(env, error, &command, &args);
+    TEST_ASSERT_EQUAL_STRING("tool'a", command.values[0]);
+    p101_tool_argv_destroy(env, &command);
     p101_unsetenv(env, error, "P101_ERROR_CONTRACT_FACT_TOOL");
     p101_setenv(env, error, "P101_ERROR_CONTRACT_FACT_TOOL", "", 1);
     p101_setenv(env, error, "P101_WRAPPER_AUDIT", "other", 1);
-    p101_error_contract_build_fact_command(env, error, command, sizeof(command), &args);
+    p101_error_contract_build_fact_argv(env, error, &command, &args);
+    TEST_ASSERT_EQUAL_STRING("other", command.values[0]);
+    p101_tool_argv_destroy(env, &command);
     p101_unsetenv(env, error, "P101_ERROR_CONTRACT_FACT_TOOL");
     p101_unsetenv(env, error, "P101_WRAPPER_AUDIT");
     p101_setenv(env, error, "P101_WRAPPER_AUDIT", "", 1);
     args.fact_tool_path = "";
-    p101_error_contract_build_fact_command(env, error, command, sizeof(command), &args);
+    p101_error_contract_build_fact_argv(env, error, &command, &args);
+    p101_tool_argv_destroy(env, &command);
     args.fact_tool_path = NULL;
     p101_unsetenv(env, error, "P101_WRAPPER_AUDIT");
     p101_getcwd(env, error, cwd, sizeof(cwd));
     p101_chdir(env, error, "../..");
-    p101_error_contract_build_fact_command(env, error, command, sizeof(command), &args);
+    p101_error_contract_build_fact_argv(env, error, &command, &args);
+    p101_tool_argv_destroy(env, &command);
     p101_chdir(env, error, cwd);
-    p101_error_contract_build_fact_command(env, error, tiny, sizeof(tiny), &args);
-    TEST_ASSERT_TRUE(p101_error_has_error(error));
-    p101_error_reset(error);
 
     args.compile_db_path = "compile_commands.json";
     P101_ERROR_RAISE_USER(error, "existing", ERR_USAGE);
-    p101_error_contract_build_fact_command(env, error, command, sizeof(command), &args);
+    p101_error_contract_build_fact_argv(env, error, &command, &args);
+    p101_tool_argv_destroy(env, &command);
     p101_error_reset(error);
     args.compile_db_path = NULL;
 
-    p101_memset(env, long_tool, 'x', sizeof(long_tool) - 1U);
-    long_tool[sizeof(long_tool) - 1U] = '\0';
-    args.fact_tool_path               = long_tool;
+    args.fact_tool_path = "/definitely/missing/p101-wrapper-audit";
     p101_memset(env, &model, 0, sizeof(model));
     p101_error_contract_load_facts(env, error, &args, &model);
     TEST_ASSERT_TRUE(p101_error_has_error(error));
 }
 
-static void test_pclose_wrapper_failure_preserves_its_error(void)
+static void test_pipe_close_wrapper_failure_preserves_its_error(void)
 {
     struct arguments             args;
     static struct contract_model model;
@@ -409,7 +423,7 @@ static void test_pclose_wrapper_failure_preserves_its_error(void)
     struct p101_env             *fault_env;
 
     p101_setenv(env, error, "P101_FAULT_CALL", "1", 1);
-    p101_setenv(env, error, "P101_FAULT_NAME", "pclose", 1);
+    p101_setenv(env, error, "P101_FAULT_NAME", "fclose", 1);
     p101_setenv(env, error, "P101_FAULT_ERRNO", "5", 1);
     fault_error = p101_error_create(false);
     fault_env   = p101_env_create(fault_error, NULL);
@@ -438,6 +452,6 @@ int main(void)
     RUN_TEST(test_local_contracts_and_optional_boundaries);
     RUN_TEST(test_function_boundaries_and_unmatched_optional_marker);
     RUN_TEST(test_fact_command_selection_and_overflow);
-    RUN_TEST(test_pclose_wrapper_failure_preserves_its_error);
+    RUN_TEST(test_pipe_close_wrapper_failure_preserves_its_error);
     return UNITY_END();
 }

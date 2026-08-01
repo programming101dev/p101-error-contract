@@ -1,95 +1,32 @@
 #include "fact_command.h"
 #include "constants.h"
-#include "errors.h"
 #include <p101_c/p101_stdio.h>
 #include <p101_c/p101_stdlib.h>
-#include <p101_c/p101_string.h>
 #include <p101_c_facts/project.h>
-#include <stdbool.h>
 
-static void        append_checked(const struct p101_env *env, struct p101_error *err, char *command, size_t command_size, const char *text);
-static void        append_char_checked(const struct p101_env *env, struct p101_error *err, char *command, size_t command_size, char ch);
-static void        append_shell_quoted(const struct p101_env *env, struct p101_error *err, char *command, size_t command_size, const char *text);
-static void        append_cflag(const struct p101_env *env, struct p101_error *err, char *command, size_t command_size, const char *flag);
-static void        append_compile_database(const struct p101_env *env, struct p101_error *err, char *command, size_t command_size, const char *path);
-static void        append_include_roots(const struct p101_env *env, struct p101_error *err, char *command, size_t command_size, const char *path);
+static void        append_include_roots(const struct p101_env *env, struct p101_error *err, struct p101_tool_argv *command, const char *path);
 static const char *choose_fact_tool(const struct p101_env *env, const struct arguments *args);
 
-static void append_checked(const struct p101_env *env, struct p101_error *err, char *command, size_t command_size, const char *text)
+static void append_include_roots(const struct p101_env *env, struct p101_error *err, struct p101_tool_argv *command, const char *path)
 {
-    size_t used;
-    size_t extra;
+    char include_arg[CONTRACT_PATH_LEN + sizeof("--cflag=-I/../include")];
 
     P101_TRACE_SCOPE(env);
-    used  = p101_strlen(env, command);
-    extra = p101_strlen(env, text);
-
-    if(used + extra >= command_size)
+    p101_snprintf(env, err, include_arg, sizeof(include_arg), "--cflag=-I%s", path);
+    if(p101_error_has_no_error(err))
     {
-        P101_ERROR_RAISE_USER(err, "The p101-wrapper-audit command is too long.", ERR_USAGE);
-        goto done;
+        (void)p101_tool_argv_append(env, err, command, include_arg);
     }
-
-    p101_strncpy(env, command + used, text, command_size - used - 1U);
-    command[command_size - 1U] = '\0';
-
-done:
-    return;
-}
-
-static void append_char_checked(const struct p101_env *env, struct p101_error *err, char *command, size_t command_size, char ch)
-{
-    char text[2];
-
-    P101_TRACE_SCOPE(env);
-    text[0] = ch;
-    text[1] = '\0';
-    append_checked(env, err, command, command_size, text);
-}
-
-static void append_shell_quoted(const struct p101_env *env, struct p101_error *err, char *command, size_t command_size, const char *text)
-{
-    P101_TRACE_SCOPE(env);
-    append_char_checked(env, err, command, command_size, '\'');
-    for(size_t i = 0U; text[i] != '\0' && p101_error_has_no_error(err); i++)
+    p101_snprintf(env, err, include_arg, sizeof(include_arg), "--cflag=-I%s/include", path);
+    if(p101_error_has_no_error(err))
     {
-        if(text[i] == '\'')
-        {
-            append_checked(env, err, command, command_size, "'\\''");
-        }
-        else
-        {
-            append_char_checked(env, err, command, command_size, text[i]);
-        }
+        (void)p101_tool_argv_append(env, err, command, include_arg);
     }
-    append_char_checked(env, err, command, command_size, '\'');
-}
-
-static void append_cflag(const struct p101_env *env, struct p101_error *err, char *command, size_t command_size, const char *flag)
-{
-    P101_TRACE_SCOPE(env);
-    append_checked(env, err, command, command_size, " --cflag=");
-    append_shell_quoted(env, err, command, command_size, flag);
-}
-
-static void append_compile_database(const struct p101_env *env, struct p101_error *err, char *command, size_t command_size, const char *path)
-{
-    P101_TRACE_SCOPE(env);
-    append_checked(env, err, command, command_size, " --compile-db=");
-    append_shell_quoted(env, err, command, command_size, path);
-}
-
-static void append_include_roots(const struct p101_env *env, struct p101_error *err, char *command, size_t command_size, const char *path)
-{
-    char include_arg[CONTRACT_PATH_LEN];
-
-    P101_TRACE_SCOPE(env);
-    p101_snprintf(env, err, include_arg, sizeof(include_arg), "-I%s", path);
-    append_cflag(env, err, command, command_size, include_arg);
-    p101_snprintf(env, err, include_arg, sizeof(include_arg), "-I%s/include", path);
-    append_cflag(env, err, command, command_size, include_arg);
-    p101_snprintf(env, err, include_arg, sizeof(include_arg), "-I%s/../include", path);
-    append_cflag(env, err, command, command_size, include_arg);
+    p101_snprintf(env, err, include_arg, sizeof(include_arg), "--cflag=-I%s/../include", path);
+    if(p101_error_has_no_error(err))
+    {
+        (void)p101_tool_argv_append(env, err, command, include_arg);
+    }
 }
 
 static const char *choose_fact_tool(const struct p101_env *env, const struct arguments *args)
@@ -101,33 +38,32 @@ static const char *choose_fact_tool(const struct p101_env *env, const struct arg
     {
         return args->fact_tool_path;
     }
-
     tool = p101_getenv(env, "P101_ERROR_CONTRACT_FACT_TOOL");
     if(tool != NULL && tool[0] != '\0')
     {
         return tool;
     }
-
     tool = p101_getenv(env, "P101_WRAPPER_AUDIT");
     if(tool != NULL && tool[0] != '\0')
     {
         return tool;
     }
-
     return "p101-wrapper-audit";
 }
 
-void p101_error_contract_build_fact_command(const struct p101_env *env, struct p101_error *err, char *command, size_t command_size, const struct arguments *args)
+void p101_error_contract_build_fact_argv(const struct p101_env *env, struct p101_error *err, struct p101_tool_argv *command, const struct arguments *args)
 {
     char        discovered_compile_db[CONTRACT_PATH_LEN];
     const char *compile_db;
-    const char *tool;
 
     P101_TRACE_SCOPE(env);
-    command[0] = '\0';
-    tool       = choose_fact_tool(env, args);
-    append_shell_quoted(env, err, command, command_size, tool);
-    append_checked(env, err, command, command_size, " --emit-module-facts");
+    p101_tool_argv_init(command);
+    if(p101_error_has_error(err))
+    {
+        return;
+    }
+    (void)p101_tool_argv_append(env, err, command, choose_fact_tool(env, args));
+    (void)p101_tool_argv_append(env, err, command, "--emit-module-facts");
     compile_db = args->compile_db_path;
     if(compile_db == NULL && p101_c_facts_find_clang_compile_database(env, err, ".", discovered_compile_db, sizeof(discovered_compile_db)))
     {
@@ -135,37 +71,26 @@ void p101_error_contract_build_fact_command(const struct p101_env *env, struct p
     }
     if(compile_db != NULL && p101_error_has_no_error(err))
     {
-        append_compile_database(env, err, command, command_size, compile_db);
-        append_checked(env, err, command, command_size, " --compile-db-only");
+        (void)p101_tool_argv_append(env, err, command, "--compile-db");
+        (void)p101_tool_argv_append(env, err, command, compile_db);
+        (void)p101_tool_argv_append(env, err, command, "--compile-db-only");
     }
-    append_include_roots(env, err, command, command_size, ".");
-    append_include_roots(env, err, command, command_size, "include");
-
+    append_include_roots(env, err, command, ".");
+    append_include_roots(env, err, command, "include");
     if(args->path_count == 0U)
     {
-        append_include_roots(env, err, command, command_size, DEFAULT_SOURCE_PATH);
+        append_include_roots(env, err, command, DEFAULT_SOURCE_PATH);
+        (void)p101_tool_argv_append(env, err, command, DEFAULT_SOURCE_PATH);
     }
     else
     {
-        for(size_t i = 0U; i < args->path_count && p101_error_has_no_error(err); i++)
+        for(size_t index = 0U; index < args->path_count && p101_error_has_no_error(err); index++)
         {
-            append_include_roots(env, err, command, command_size, args->paths[i]);
+            append_include_roots(env, err, command, args->paths[index]);
+        }
+        for(size_t index = 0U; index < args->path_count && p101_error_has_no_error(err); index++)
+        {
+            (void)p101_tool_argv_append(env, err, command, args->paths[index]);
         }
     }
-
-    if(args->path_count == 0U)
-    {
-        append_char_checked(env, err, command, command_size, ' ');
-        append_shell_quoted(env, err, command, command_size, DEFAULT_SOURCE_PATH);
-    }
-    else
-    {
-        for(size_t i = 0U; i < args->path_count && p101_error_has_no_error(err); i++)
-        {
-            append_char_checked(env, err, command, command_size, ' ');
-            append_shell_quoted(env, err, command, command_size, args->paths[i]);
-        }
-    }
-
-    append_checked(env, err, command, command_size, " 2>&1");
 }
