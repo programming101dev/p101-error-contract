@@ -5,7 +5,7 @@
 #include <p101_c_facts/project.h>
 
 static void        append_include_roots(const struct p101_env *env, struct p101_error *err, struct p101_tool_argv *command, const char *path);
-static const char *choose_fact_tool(const struct p101_env *env, const struct arguments *args);
+static const char *choose_fact_tool(const struct p101_env *env, struct p101_error *err, const struct arguments *args);
 
 static void append_include_roots(const struct p101_env *env, struct p101_error *err, struct p101_tool_argv *command, const char *path)
 {
@@ -29,7 +29,7 @@ static void append_include_roots(const struct p101_env *env, struct p101_error *
     }
 }
 
-static const char *choose_fact_tool(const struct p101_env *env, const struct arguments *args)
+static const char *choose_fact_tool(const struct p101_env *env, struct p101_error *err, const struct arguments *args)
 {
     const char *tool;
 
@@ -38,12 +38,12 @@ static const char *choose_fact_tool(const struct p101_env *env, const struct arg
     {
         return args->fact_tool_path;
     }
-    tool = p101_getenv(env, "P101_ERROR_CONTRACT_FACT_TOOL");
+    tool = p101_getenv(env, err, "P101_ERROR_CONTRACT_FACT_TOOL");
     if(tool != NULL && tool[0] != '\0')
     {
         return tool;
     }
-    tool = p101_getenv(env, "P101_WRAPPER_AUDIT");
+    tool = p101_getenv(env, err, "P101_WRAPPER_AUDIT");
     if(tool != NULL && tool[0] != '\0')
     {
         return tool;
@@ -62,7 +62,7 @@ void p101_error_contract_build_fact_argv(const struct p101_env *env, struct p101
     {
         return;
     }
-    (void)p101_tool_argv_append(env, err, command, choose_fact_tool(env, args));
+    (void)p101_tool_argv_append(env, err, command, choose_fact_tool(env, err, args));
     (void)p101_tool_argv_append(env, err, command, "--emit-module-facts");
     compile_db = args->compile_db_path;
     if(compile_db == NULL && p101_c_facts_find_clang_compile_database(env, err, ".", discovered_compile_db, sizeof(discovered_compile_db)))
