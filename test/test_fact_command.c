@@ -429,7 +429,12 @@ static void test_pipe_close_wrapper_failure_preserves_its_error(void)
     fault_env   = p101_env_create(fault_error, NULL);
     p101_memset(fault_env, &args, 0, sizeof(args));
     p101_memset(fault_env, &model, 0, sizeof(model));
-    args.fact_tool_path = "/usr/bin/true";
+    /*
+     * Use a helper built by this test tree. A Homebrew-ASan process can pass
+     * its injected runtime to children, while macOS system binaries may use
+     * the arm64e ABI that the Homebrew runtime does not provide.
+     */
+    args.fact_tool_path = P101_TEST_FACT_PRODUCER;
 
     p101_error_contract_load_facts(fault_env, fault_error, &args, &model);
 

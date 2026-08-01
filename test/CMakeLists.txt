@@ -7,6 +7,8 @@ add_library(unity STATIC unity/unity.c)
 target_include_directories(unity PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/unity")
 target_compile_options(unity PRIVATE -w)
 
+add_executable(test_fact_producer test_fact_producer.c)
+
 option(P101_TEST_COVERAGE "Instrument the code under test" OFF)
 set(_COV "")
 if (P101_TEST_COVERAGE)
@@ -54,6 +56,8 @@ p101_add_test(test_fact_command
         ../src/fact_command.c
         ../src/report.c)
 target_compile_definitions(test_fact_command PRIVATE P101_ERROR_CONTRACT_TESTING=1)
+target_compile_definitions(test_fact_command PRIVATE P101_TEST_FACT_PRODUCER="$<TARGET_FILE:test_fact_producer>")
+add_dependencies(test_fact_command test_fact_producer)
 
 add_executable(p101_error_contract_coverage_cli
         ../src/cli.c
