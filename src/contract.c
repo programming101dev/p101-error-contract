@@ -160,6 +160,14 @@ static bool event_is_in_function(const struct p101_env *env, const struct contra
     {
         return false;
     }
+    if(event->caller[0] != '\0')
+    {
+        return p101_strcmp(env, event->caller, function->name) == 0;
+    }
+    if(event->start != 0U && function->end > function->start)
+    {
+        return (event->start >= function->start && event->start < function->end) != 0;
+    }
     if(event->line < function->line || event->line >= end_line)
     {
         return false;

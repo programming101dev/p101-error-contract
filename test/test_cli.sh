@@ -10,12 +10,6 @@ trap 'rm -rf "$work"' EXIT
 cp "$(dirname "$0")/contract_fixture.c" "$work/sample.c"
 cd "$work"
 "$facts_tool" --emit-module-facts "$work/sample.c" >"$work/good.tsv"
-cat >"$work/bad-fact-tool" <<'SCRIPT'
-#!/usr/bin/env bash
-printf 'P101FACT\t2\tFILE\n'
-SCRIPT
-chmod +x "$work/bad-fact-tool"
-
 expect() {
   wanted=$1
   shift
@@ -31,10 +25,12 @@ expect() {
 
 expect 0 --help
 expect 0 -h
-expect 1 -v -F "$facts_tool" "$work/sample.c"
+expect 1 -S "$work/sample.c"
+grep -q 'P101-ERR-004' "$work/stdout"
+expect 1 -v "$work/sample.c"
 grep -q 'P101-ERR-005' "$work/stdout"
 grep -q 'P101-ERR-006' "$work/stdout"
-expect 1 -S -F "$facts_tool" "$work/sample.c"
+expect 1 -S "$work/sample.c"
 for diagnostic_id in \
   P101-ERR-001 \
   P101-ERR-002 \
@@ -45,8 +41,8 @@ for diagnostic_id in \
 do
   grep -q "$diagnostic_id" "$work/stdout"
 done
-expect 1 -j -v -F "$facts_tool" "$work/sample.c"
-expect 1 -q -F "$facts_tool" "$work/sample.c"
+expect 1 -j -v "$work/sample.c"
+expect 1 -q "$work/sample.c"
 cat >"$work/balanced.tsv" <<'FACTS'
 P101FACT	2	CALL	balanced.c	balanced	0	1	p101_error_create	0	0
 P101FACT	2	CALL	balanced.c	balanced	0	2	p101_error_destroy	0	0
@@ -56,9 +52,7 @@ FACTS
 expect 0 -i "$work/balanced.tsv"
 expect 2 -i ''
 expect 2 -C ''
-expect 2 -F ''
 expect 2 -i facts -C db
-expect 2 -i facts -F tool
 expect 2 -Z
 expect 2 "-"$'\001'
 P101_ERROR_CONTRACT_TEST_OPTION=@ expect 2 -i /dev/null
@@ -77,10 +71,8 @@ expect 2 -i "$work/malformed.tsv"
   printf 'tail\nP101FACT\t2\tFILE\tx\tx\t0\t0\n'
 } >"$work/overlong.tsv"
 expect 0 -i "$work/overlong.tsv"
-expect 2 -F /usr/bin/false "$work/sample.c"
-expect 2 -F "$work/bad-fact-tool" "$work/sample.c"
 set +e
-"$tool" -v -F "$facts_tool" "$work/sample.c" >/dev/null 2>&-
+"$tool" -v "$work/sample.c" >/dev/null 2>&-
 closed_stderr_status=$?
 set -e
 [ "$closed_stderr_status" -eq 2 ]

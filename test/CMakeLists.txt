@@ -13,15 +13,13 @@ add_library(unity STATIC unity/unity.c)
 target_include_directories(unity PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/unity")
 target_compile_options(unity PRIVATE -w)
 
-add_executable(test_fact_producer test_fact_producer.c)
-
 option(P101_TEST_COVERAGE "Instrument the code under test" OFF)
 set(_COV "")
 if (P101_TEST_COVERAGE)
     set(_COV --coverage)
 endif ()
 
-set(P101_LIBS p101_error p101_env p101_tool_event p101_c p101_c_facts p101_cli p101_filesystem p101_io p101_process p101_convert p101_util)
+set(P101_LIBS p101_error p101_env p101_record p101_tool_event p101_c p101_c_facts p101_cli p101_filesystem p101_io p101_process p101_convert p101_util)
 set(P101_PUBLIC_INCLUDE_DIRS "" CACHE STRING "Extra p101 include dirs")
 set(P101_PUBLIC_LINK_DIRS "" CACHE STRING "Extra p101 link dirs")
 separate_arguments(P101_PUBLIC_INCLUDE_DIRS_LIST NATIVE_COMMAND "${P101_PUBLIC_INCLUDE_DIRS}")
@@ -54,23 +52,23 @@ function(p101_add_test name)
 endfunction()
 
 p101_add_test(test_p101_string test_p101_string.c)
-p101_add_test(test_fact_command
-        test_fact_command.c
+p101_add_test(test_contract_model
+        test_contract_model.c
         ../src/cli.c
         ../src/contract.c
+        ../src/contract_builder.c
         ../src/contract_model.c
-        ../src/fact_command.c
+        ../src/native_analysis.c
         ../src/report.c)
-target_compile_definitions(test_fact_command PRIVATE P101_ERROR_CONTRACT_TESTING=1)
-target_compile_definitions(test_fact_command PRIVATE P101_TEST_FACT_PRODUCER="$<TARGET_FILE:test_fact_producer>")
-add_dependencies(test_fact_command test_fact_producer)
+target_compile_definitions(test_contract_model PRIVATE P101_ERROR_CONTRACT_TESTING=1)
 
 add_executable(p101_error_contract_coverage_cli
         ../src/cli.c
         ../src/contract.c
+        ../src/contract_builder.c
         ../src/contract_model.c
-        ../src/fact_command.c
         ../src/main.c
+        ../src/native_analysis.c
         ../src/report.c)
 target_include_directories(p101_error_contract_coverage_cli PRIVATE ${_P101_INC_DIRS} "${CMAKE_CURRENT_SOURCE_DIR}/../include")
 target_link_libraries(p101_error_contract_coverage_cli PRIVATE ${_P101_RESOLVED} m)

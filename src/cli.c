@@ -34,9 +34,9 @@ void p101_error_contract_parse_arguments(const struct p101_env *env, struct p101
 
     while(
 #ifdef P101_ERROR_CONTRACT_TESTING
-        (opt = (forced_option == NULL) ? p101_getopt(env, argc, argv, ":hjqSvi:C:F:") : (unsigned char)*forced_option) != -1 &&
+        (opt = (forced_option == NULL) ? p101_getopt(env, argc, argv, ":hjqSvi:C:") : (unsigned char)*forced_option) != -1 &&
 #else
-        (opt = p101_getopt(env, argc, argv, ":hjqSvi:C:F:")) != -1 &&
+        (opt = p101_getopt(env, argc, argv, ":hjqSvi:C:")) != -1 &&
 #endif
         p101_error_has_no_error(err))
     {
@@ -72,11 +72,6 @@ void p101_error_contract_parse_arguments(const struct p101_env *env, struct p101
             case 'i':
             {
                 args->facts_path = optarg;
-                break;
-            }
-            case 'F':
-            {
-                args->fact_tool_path = optarg;
                 break;
             }
             case 'C':
@@ -134,10 +129,6 @@ void p101_error_contract_check_arguments(const struct p101_env *env, struct p101
 {
     P101_TRACE_SCOPE(env);
 
-    if(args->fact_tool_path != NULL && args->fact_tool_path[0] == '\0')
-    {
-        P101_ERROR_RAISE_USER(err, "The p101-wrapper-audit path must not be empty.", ERR_USAGE);
-    }
     if(args->compile_db_path != NULL && args->compile_db_path[0] == '\0')
     {
         P101_ERROR_RAISE_USER(err, "The compile database path must not be empty.", ERR_USAGE);
@@ -146,9 +137,9 @@ void p101_error_contract_check_arguments(const struct p101_env *env, struct p101
     {
         P101_ERROR_RAISE_USER(err, "The facts path must not be empty.", ERR_USAGE);
     }
-    if(args->facts_path != NULL && (args->compile_db_path != NULL || args->fact_tool_path != NULL))
+    if(args->facts_path != NULL && args->compile_db_path != NULL)
     {
-        P101_ERROR_RAISE_USER(err, "The facts snapshot cannot be combined with -C or -F.", ERR_USAGE);
+        P101_ERROR_RAISE_USER(err, "The facts snapshot cannot be combined with -C.", ERR_USAGE);
     }
 }
 
@@ -164,16 +155,15 @@ _Noreturn void p101_error_contract_usage(const struct p101_env *env, struct p101
         p101_fprintf(env, err, stream, "%s\n\n", message);
     }
 
-    p101_fprintf(env, err, stream, "Usage: %s [-h] [-j] [-q] [-S] [-v] [-i <facts.tsv>] [-C <compile_commands.json>] [-F <p101-wrapper-audit>] [path ...]\n", program_name);
+    p101_fprintf(env, err, stream, "Usage: %s [-h] [-j] [-q] [-S] [-v] [-i <facts.tsv>] [-C <compile_commands.json>] [path ...]\n", program_name);
     p101_fputs(env, err, "\nChecks p101 error-handling contracts in C source files.\n\n", stream);
     p101_fputs(env, err, "Options:\n", stream);
     p101_fputs(env, err, "  -j        Emit JSON findings and summary.\n", stream);
     p101_fputs(env, err, "  -q        Quiet: print only findings, not the clean summary.\n", stream);
     p101_fputs(env, err, "  -S        Strict sequencing: report unchecked chains of fallible calls.\n", stream);
-    p101_fputs(env, err, "  -v        Show the fact command on stderr.\n", stream);
+    p101_fputs(env, err, "  -v        Describe the native lib_c_facts scan on stderr.\n", stream);
     p101_fputs(env, err, "  -i <file> Read a reusable P101FACT v2 snapshot instead of invoking Clang.\n", stream);
-    p101_fputs(env, err, "  -C <file> Compile database passed to p101-wrapper-audit.\n", stream);
-    p101_fputs(env, err, "  -F <tool> p101-wrapper-audit executable used for Clang AST facts.\n", stream);
+    p101_fputs(env, err, "  -C <file> Compile database used by lib_c_facts.\n", stream);
     p101_fputs(env, err, "  -h        Show this help.\n", stream);
     p101_fputs(env, err, "\nIf no path is given, src is scanned.\n", stream);
     p101_fputs(env, err, "\nExit status: 0 clean, 1 findings, 2 usage/tool trouble.\n", stream);

@@ -1,7 +1,9 @@
 #include "report.h"
 #include "constants.h"
+#include <errno.h>
 #include <p101_c/p101_stdio.h>
 #include <p101_c/p101_string.h>
+#include <p101_record/record.h>
 
 static void json_string(const struct p101_env *env, struct p101_error *err, const char *text);
 
@@ -70,50 +72,8 @@ void p101_error_contract_report_end(const struct p101_env *env, struct p101_erro
 static void json_string(const struct p101_env *env, struct p101_error *err, const char *text)
 {
     P101_TRACE_SCOPE(env);
-    p101_fputs(env, err, "\"", stdout);
-
-    if(text != NULL)
+    if(p101_record_write_json_string(stdout, text == NULL ? "" : text) != 0)
     {
-        const unsigned char *cursor;
-        size_t               length;
-
-        cursor = (const unsigned char *)text;
-        length = p101_strlen(env, text);
-        for(size_t index = 0U; index < length && p101_error_has_no_error(err); index++)
-        {
-            unsigned char current;
-
-            current = cursor[index];
-            switch(current)
-            {
-                case '\"':
-                    p101_fputs(env, err, "\\\"", stdout);
-                    break;
-                case '\\':
-                    p101_fputs(env, err, "\\\\", stdout);
-                    break;
-                case '\n':
-                    p101_fputs(env, err, "\\n", stdout);
-                    break;
-                case '\r':
-                    p101_fputs(env, err, "\\r", stdout);
-                    break;
-                case '\t':
-                    p101_fputs(env, err, "\\t", stdout);
-                    break;
-                default:
-                    if(current < JSON_CONTROL_CHAR_LIMIT)
-                    {
-                        p101_fprintf(env, err, stdout, "\\u%04x", (unsigned)current);
-                    }
-                    else
-                    {
-                        p101_fprintf(env, err, stdout, "%c", current);
-                    }
-                    break;
-            }
-        }
+        P101_ERROR_RAISE_ERRNO(err, errno == 0 ? EIO : errno);
     }
-
-    p101_fputs(env, err, "\"", stdout);
 }

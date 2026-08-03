@@ -3,7 +3,6 @@
 #include "contract.h"
 #include "contract_model.h"
 #include "errors.h"
-#include "fact_command.h"
 #include "report.h"
 #include "test_hooks.h"
 #include "unity.h"
@@ -13,23 +12,10 @@
 #include <p101_env/env.h>
 #include <p101_error/error.h>
 #include <p101_filesystem/filesystem.h>
-#include <p101_process/process.h>
 
 static struct p101_error     *error;
 static struct p101_env       *env;
 static struct contract_model *model;
-
-static size_t find_argument(const struct p101_tool_argv *command, const char *argument)
-{
-    for(size_t index = 0U; index < command->count; index++)
-    {
-        if(p101_strcmp(env, command->values[index], argument) == 0)
-        {
-            return index;
-        }
-    }
-    return command->count;
-}
 
 void setUp(void)
 {
@@ -44,58 +30,6 @@ void tearDown(void)
     p101_free(env, model);
     p101_env_destroy(env);
     p101_error_destroy(error);
-}
-
-static void test_cflags_precede_all_positional_source_paths(void)
-{
-    struct arguments      args;
-    struct p101_tool_argv command;
-    size_t                first_source;
-    size_t                cflag;
-
-    p101_memset(env, &args, 0, sizeof(args));
-    args.fact_tool_path = "p101-wrapper-audit";
-    args.paths[0]       = "src";
-    args.paths[1]       = "include";
-    args.path_count     = 2U;
-
-    p101_error_contract_build_fact_argv(env, error, &command, &args);
-
-    TEST_ASSERT_FALSE(p101_error_has_error(error));
-    cflag        = find_argument(&command, "--cflag=-Isrc");
-    first_source = find_argument(&command, "src");
-    TEST_ASSERT_TRUE(cflag < command.count);
-    TEST_ASSERT_TRUE(first_source < command.count);
-    TEST_ASSERT_TRUE(cflag < first_source);
-    TEST_ASSERT_TRUE(find_argument(&command, "include") > first_source);
-    p101_tool_argv_destroy(env, &command);
-}
-
-static void test_explicit_compile_database_precedes_source_paths(void)
-{
-    struct arguments      args;
-    struct p101_tool_argv command;
-    size_t                compile_db;
-    size_t                first_source;
-
-    p101_memset(env, &args, 0, sizeof(args));
-    args.fact_tool_path  = "p101-wrapper-audit";
-    args.compile_db_path = "/tmp/project with spaces/compile_commands.json";
-    args.paths[0]        = "src";
-    args.path_count      = 1U;
-
-    p101_error_contract_build_fact_argv(env, error, &command, &args);
-
-    TEST_ASSERT_FALSE(p101_error_has_error(error));
-    compile_db   = find_argument(&command, "--compile-db");
-    first_source = find_argument(&command, "src");
-    TEST_ASSERT_TRUE(compile_db < command.count);
-    TEST_ASSERT_TRUE(compile_db + 1U < command.count);
-    TEST_ASSERT_EQUAL_STRING("/tmp/project with spaces/compile_commands.json", command.values[compile_db + 1U]);
-    TEST_ASSERT_TRUE(first_source < command.count);
-    TEST_ASSERT_TRUE(compile_db < first_source);
-    TEST_ASSERT_TRUE(find_argument(&command, "--compile-db-only") < command.count);
-    p101_tool_argv_destroy(env, &command);
 }
 
 static void apply_kind(struct contract_model *model, enum p101_c_fact_kind kind, const char *value, size_t line, bool flag1, bool flag2)
@@ -365,89 +299,13 @@ static void test_function_boundaries_and_unmatched_optional_marker(void)
     TEST_ASSERT_EQUAL_size_t(1U, report.findings);
 }
 
-static void test_fact_command_selection_and_overflow(void)
-{
-    struct arguments      args;
-    struct p101_tool_argv command;
-    char                  cwd[CONTRACT_PATH_LEN];
-
-    p101_memset(env, &args, 0, sizeof(args));
-    p101_setenv(env, error, "P101_ERROR_CONTRACT_FACT_TOOL", "tool'a", 1);
-    p101_error_contract_build_fact_argv(env, error, &command, &args);
-    TEST_ASSERT_EQUAL_STRING("tool'a", command.values[0]);
-    p101_tool_argv_destroy(env, &command);
-    p101_unsetenv(env, error, "P101_ERROR_CONTRACT_FACT_TOOL");
-    p101_setenv(env, error, "P101_ERROR_CONTRACT_FACT_TOOL", "", 1);
-    p101_setenv(env, error, "P101_WRAPPER_AUDIT", "other", 1);
-    p101_error_contract_build_fact_argv(env, error, &command, &args);
-    TEST_ASSERT_EQUAL_STRING("other", command.values[0]);
-    p101_tool_argv_destroy(env, &command);
-    p101_unsetenv(env, error, "P101_ERROR_CONTRACT_FACT_TOOL");
-    p101_unsetenv(env, error, "P101_WRAPPER_AUDIT");
-    p101_setenv(env, error, "P101_WRAPPER_AUDIT", "", 1);
-    args.fact_tool_path = "";
-    p101_error_contract_build_fact_argv(env, error, &command, &args);
-    p101_tool_argv_destroy(env, &command);
-    args.fact_tool_path = NULL;
-    p101_unsetenv(env, error, "P101_WRAPPER_AUDIT");
-    p101_getcwd(env, error, cwd, sizeof(cwd));
-    p101_chdir(env, error, "../..");
-    p101_error_contract_build_fact_argv(env, error, &command, &args);
-    p101_tool_argv_destroy(env, &command);
-    p101_chdir(env, error, cwd);
-
-    args.compile_db_path = "compile_commands.json";
-    P101_ERROR_RAISE_USER(error, "existing", ERR_USAGE);
-    p101_error_contract_build_fact_argv(env, error, &command, &args);
-    p101_tool_argv_destroy(env, &command);
-    p101_error_reset(error);
-    args.compile_db_path = NULL;
-
-    args.fact_tool_path = "/definitely/missing/p101-wrapper-audit";
-    p101_error_contract_load_facts(env, error, &args, model);
-    TEST_ASSERT_TRUE(p101_error_has_error(error));
-}
-
-static void test_pipe_close_wrapper_failure_preserves_its_error(void)
-{
-    struct arguments   args;
-    struct p101_error *fault_error;
-    struct p101_env   *fault_env;
-
-    p101_setenv(env, error, "P101_FAULT_CALL", "1", 1);
-    p101_setenv(env, error, "P101_FAULT_NAME", "fclose", 1);
-    p101_setenv(env, error, "P101_FAULT_ERRNO", "5", 1);
-    fault_error = p101_error_create(false);
-    fault_env   = p101_env_create(fault_error, NULL);
-    p101_memset(fault_env, &args, 0, sizeof(args));
-    /*
-     * Use a helper built by this test tree. A Homebrew-ASan process can pass
-     * its injected runtime to children, while macOS system binaries may use
-     * the arm64e ABI that the Homebrew runtime does not provide.
-     */
-    args.fact_tool_path = P101_TEST_FACT_PRODUCER;
-
-    p101_error_contract_load_facts(fault_env, fault_error, &args, model);
-
-    TEST_ASSERT_TRUE(p101_error_has_error(fault_error));
-    p101_env_destroy(fault_env);
-    p101_error_destroy(fault_error);
-    p101_unsetenv(env, error, "P101_FAULT_CALL");
-    p101_unsetenv(env, error, "P101_FAULT_NAME");
-    p101_unsetenv(env, error, "P101_FAULT_ERRNO");
-}
-
 int main(void)
 {
     UNITY_BEGIN();
-    RUN_TEST(test_cflags_precede_all_positional_source_paths);
-    RUN_TEST(test_explicit_compile_database_precedes_source_paths);
     RUN_TEST(test_model_fact_kinds_and_limits);
     RUN_TEST(test_analysis_reports_all_contract_findings);
     RUN_TEST(test_ownership_imbalance_findings);
     RUN_TEST(test_local_contracts_and_optional_boundaries);
     RUN_TEST(test_function_boundaries_and_unmatched_optional_marker);
-    RUN_TEST(test_fact_command_selection_and_overflow);
-    RUN_TEST(test_pipe_close_wrapper_failure_preserves_its_error);
     return UNITY_END();
 }

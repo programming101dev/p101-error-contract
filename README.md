@@ -4,14 +4,15 @@
 function uses p101 wrappers, tracing, or p101 error macros, the function should
 make its `env` and `err` contracts visible.
 
-The tool consumes the shared `P101FACT` stream produced by
-`p101-wrapper-audit --emit-module-facts` and parsed through `lib_c_facts`, so it
-does not own a private C parser.
+The normal path consumes native libclang records directly from `lib_c_facts`,
+including exact function extents and caller identity, so it does not own a
+private C parser or reconstruct function boundaries from line order. A
+`P101FACT` snapshot remains available as an explicit offline input.
 
 ## Usage
 
 ```sh
-p101-error-contract [-h] [-j] [-q] [-v] [-i <facts.tsv> | -C <compile_commands.json> | -F <p101-wrapper-audit>] [path ...]
+p101-error-contract [-h] [-j] [-q] [-v] [-i <facts.tsv> | -C <compile_commands.json>] [path ...]
 ```
 
 Examples:
@@ -20,7 +21,6 @@ Examples:
 p101-error-contract
 p101-error-contract src include
 p101-error-contract -C build-clang/compile_commands.json src
-p101-error-contract -F ../p101-wrapper-audit/p101-wrapper-audit src
 p101-error-contract -i source-facts.tsv src include
 p101-error-contract -j src > error-contract.json
 ```
@@ -67,14 +67,12 @@ struct p101_env   *env = p101_env_create(err, NULL);
 ## Admitted inputs
 
 The user gives source/header paths. With `-i`, the tool consumes that exact
-P101FACT v2 snapshot and does not invoke Clang again. Otherwise, it runs
-`p101-wrapper-audit --emit-module-facts` over those paths and consumes the
-resulting TSV fact stream. If the current project has a Clang build named by
+P101FACT v2 snapshot and does not invoke Clang again. Otherwise, it invokes
+`lib_c_facts` directly over the admitted translation units. If the current
+project has a Clang build named by
 `.last-build-dir`, or a `build-clang/compile_commands.json`, that database is
-passed automatically so sibling p101 include directories and project defines
-are preserved. Use `-C` to select another compile database explicitly. Use `-F`
-or `P101_ERROR_CONTRACT_FACT_TOOL` to choose the wrapper-audit executable.
-`P101_WRAPPER_AUDIT` is also honored.
+used automatically so sibling p101 include directories and project defines
+are preserved. Use `-C` to select another compile database explicitly.
 
 ## Outputs
 
@@ -95,19 +93,19 @@ Each finding uses the common `id`, `severity`, `location`, `message`, and
 
 ## Blind spots
 
-This checker is only as complete as the fact stream it receives. If
-`p101-wrapper-audit` cannot parse a translation unit, or the wrong include flags
-or compile database are used, the contract report is partial or fails as tool
-trouble. The contract judgment is still a teaching heuristic, not a proof of all
-possible C control flow.
+This checker is only as complete as the admitted translation units. If
+libclang cannot parse one, or the wrong include flags or compile database are
+used, analysis fails as tool trouble rather than silently reporting a partial
+clean result. The contract judgment is still a teaching heuristic, not a proof
+of all possible C control flow.
 
 The flow check follows calls with the standard fallible wrapper contract
-(`env, err, ...`), recognizes explicit error guards, and follows conservative
-statement-local sequences. A function return propagates its existing `err`
-state; the tool does not guess whether a numeric return value means success or
-failure. It deliberately does not invent loop back-edges, merge arbitrary
-branches, or model switch fallthrough; those require a full compiler CFG and
-remain documented blind spots.
+(`env, err, ...`), recognizes explicit error guards and returns, and keeps
+branch-local state for conditionals, switches, and loops. A function return
+propagates its existing `err` state; the tool does not guess whether a numeric
+return value means success or failure. libclang's stable C API does not expose
+Clang's complete compiler CFG, so goto edges, switch fallthrough, exceptional
+C++ flow, and precise loop fixed points remain explicit blind spots.
 
 Direct libc calls are outside this tool's job; use `p101-wrapper-audit` for
 that. Third-party code is only checked if you ask this tool to scan it, and it
@@ -119,11 +117,10 @@ return value or output parameter. An intentional transfer should therefore be
 made visible in the API and documented when reviewing the finding.
 
 The `needs_env` and `needs_error` decisions come from the resolved callee
-signature recorded in P101FACT v2. The discard check relies on the p101 API
+signature recorded by libclang. The discard check relies on the p101 API
 convention that fallible wrappers take `env, err` as their first two arguments.
-C parsing belongs to
-`p101-wrapper-audit`; fact parsing belongs to `lib_c_facts`; this tool owns only
-the error-contract policy.
+C acquisition and parsing belong to `lib_c_facts`; this tool owns only the
+error-contract policy.
 
 ## Exit status
 
