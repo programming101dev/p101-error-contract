@@ -15,10 +15,6 @@ static bool fact_line_is_complete(const struct p101_env *env, struct p101_error 
 
 void p101_error_contract_load_facts(const struct p101_env *env, struct p101_error *err, const struct arguments *args, struct contract_model *model)
 {
-    FILE  *stream;
-    char   line[READ_BUF_LEN];
-    size_t fact_count;
-
     P101_TRACE_SCOPE(env);
     if(args->facts_path == NULL)
     {
@@ -26,16 +22,20 @@ void p101_error_contract_load_facts(const struct p101_env *env, struct p101_erro
     }
     else
     {
+        FILE  *stream;
+        char   line[READ_BUF_LEN];
+        size_t fact_count;
+
         stream     = p101_fopen(env, err, args->facts_path, "r");
         fact_count = 0U;
 
         while(stream != NULL && p101_fgets(env, err, line, sizeof(line), stream) != NULL)
         {
-            struct p101_c_fact      fact;
-            enum p101_c_fact_status status;
-
             if(fact_line_is_complete(env, err, stream, line))
             {
+                struct p101_c_fact      fact;
+                enum p101_c_fact_status status;
+
                 status = p101_c_fact_parse_line(env, err, line, &fact);
                 if(status != P101_C_FACT_OTHER)
                 {
