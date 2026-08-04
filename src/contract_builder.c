@@ -75,12 +75,8 @@ void p101_contract_model_record_ownership(const struct p101_env *env, struct p10
     bool                            relevant;
 
     relevant = (p101_strcmp(env, name, "p101_error_create") == 0 || p101_strcmp(env, name, "p101_error_destroy") == 0 || p101_strcmp(env, name, "p101_env_create") == 0 || p101_strcmp(env, name, "p101_env_destroy") == 0) != 0;
-    if(!relevant)
-    {
-        return;
-    }
-    owner = NULL;
-    for(size_t index = 0U; index < model->ownership_file_count; index++)
+    owner    = NULL;
+    for(size_t index = 0U; relevant && index < model->ownership_file_count; index++)
     {
         if(p101_strcmp(env, model->ownership_files[index].path, path) == 0)
         {
@@ -88,17 +84,19 @@ void p101_contract_model_record_ownership(const struct p101_env *env, struct p10
             break;
         }
     }
-    if(owner == NULL)
+    if(relevant && owner == NULL)
     {
         if(model->ownership_file_count >= MAX_FACT_FUNCTIONS)
         {
             P101_ERROR_RAISE_USER(err, "Too many ownership files in the admitted source.", ERR_TOOL);
-            return;
         }
-        owner = &model->ownership_files[model->ownership_file_count++];
-        copy_text(env, owner->path, sizeof(owner->path), path);
+        else
+        {
+            owner = &model->ownership_files[model->ownership_file_count++];
+            copy_text(env, owner->path, sizeof(owner->path), path);
+        }
     }
-    if(p101_strcmp(env, name, "p101_error_create") == 0)
+    if(owner != NULL && p101_strcmp(env, name, "p101_error_create") == 0)
     {
         owner->error_create_count++;
         if(owner->first_error_create_line == 0U)
@@ -106,11 +104,11 @@ void p101_contract_model_record_ownership(const struct p101_env *env, struct p10
             owner->first_error_create_line = line;
         }
     }
-    else if(p101_strcmp(env, name, "p101_error_destroy") == 0)
+    else if(owner != NULL && p101_strcmp(env, name, "p101_error_destroy") == 0)
     {
         owner->error_destroy_count++;
     }
-    else if(p101_strcmp(env, name, "p101_env_create") == 0)
+    else if(owner != NULL && p101_strcmp(env, name, "p101_env_create") == 0)
     {
         owner->env_create_count++;
         if(owner->first_env_create_line == 0U)
@@ -118,7 +116,7 @@ void p101_contract_model_record_ownership(const struct p101_env *env, struct p10
             owner->first_env_create_line = line;
         }
     }
-    else
+    else if(owner != NULL)
     {
         owner->env_destroy_count++;
     }
@@ -127,17 +125,18 @@ void p101_contract_model_record_ownership(const struct p101_env *env, struct p10
 static void copy_text(const struct p101_env *env, char *dst, size_t dst_size, const char *src)
 {
     P101_TRACE_SCOPE(env);
-    if(dst_size == 0U)
+    if(dst_size != 0U)
     {
-        return;
+        if(src == NULL)
+        {
+            dst[0] = '\0';
+        }
+        else
+        {
+            p101_strncpy(env, dst, src, dst_size - 1U);
+            dst[dst_size - 1U] = '\0';
+        }
     }
-    if(src == NULL)
-    {
-        dst[0] = '\0';
-        return;
-    }
-    p101_strncpy(env, dst, src, dst_size - 1U);
-    dst[dst_size - 1U] = '\0';
 }
 
 #ifdef P101_ERROR_CONTRACT_TESTING

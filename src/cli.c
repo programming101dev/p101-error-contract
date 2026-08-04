@@ -3,7 +3,6 @@
 #include "errors.h"
 #include <p101_c/p101_ctype.h>
 #include <p101_c/p101_stdio.h>
-#include <p101_c/p101_stdlib.h>
 #include <p101_c/p101_string.h>
 #include <p101_cli/cli.h>
 #include <stdlib.h>
@@ -29,7 +28,8 @@ void p101_error_contract_parse_arguments(const struct p101_env *env, struct p101
 
     if(argc == 2 && p101_strcmp(env, argv[1], "--help") == 0)
     {
-        p101_error_contract_usage(env, err, argv[0], EXIT_SUCCESS, NULL);
+        args->show_help = true;
+        return;
     }
 
     while(
@@ -47,7 +47,8 @@ void p101_error_contract_parse_arguments(const struct p101_env *env, struct p101
         {
             case 'h':
             {
-                p101_error_contract_usage(env, err, argv[0], EXIT_SUCCESS, NULL);
+                args->show_help = true;
+                break;
             }
             case 'j':
             {
@@ -143,7 +144,7 @@ void p101_error_contract_check_arguments(const struct p101_env *env, struct p101
     }
 }
 
-_Noreturn void p101_error_contract_usage(const struct p101_env *env, struct p101_error *err, const char *program_name, int exit_code, const char *message)
+void p101_error_contract_usage(const struct p101_env *env, struct p101_error *err, const char *program_name, int exit_code, const char *message)
 {
     FILE *stream;
 
@@ -162,12 +163,9 @@ _Noreturn void p101_error_contract_usage(const struct p101_env *env, struct p101
     p101_fputs(env, err, "  -q        Quiet: print only findings, not the clean summary.\n", stream);
     p101_fputs(env, err, "  -S        Strict sequencing: report unchecked chains of fallible calls.\n", stream);
     p101_fputs(env, err, "  -v        Describe the native lib_c_facts scan on stderr.\n", stream);
-    p101_fputs(env, err, "  -i <file> Read a reusable P101FACT v2 snapshot instead of invoking Clang.\n", stream);
+    p101_fputs(env, err, "  -i <file> Read a reusable P101FACT v4 snapshot instead of invoking Clang.\n", stream);
     p101_fputs(env, err, "  -C <file> Compile database used by lib_c_facts.\n", stream);
     p101_fputs(env, err, "  -h        Show this help.\n", stream);
     p101_fputs(env, err, "\nIf no path is given, src is scanned.\n", stream);
     p101_fputs(env, err, "\nExit status: 0 clean, 1 findings, 2 usage/tool trouble.\n", stream);
-
-    p101_error_destroy(err);
-    p101_exit(env, exit_code);
 }

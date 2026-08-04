@@ -37,6 +37,21 @@ If no path is supplied, `src` is scanned.
 | `P101-ERR-004` | With `-S`, a second fallible p101 call is reachable on the same Clang statement path before the prior error state is checked or returned. |
 | `P101-ERR-005` | A source file creates more `p101_error` objects than it destroys. |
 | `P101-ERR-006` | A source file creates more `p101_env` objects than it destroys. |
+| `P101-ERR-007` | A function other than `main` terminates the process instead of returning a status or raising through `p101_error`. |
+| `P101-ERR-008` | A function contains more than one explicit exit point. |
+
+Process termination is an application-boundary decision. Helpers, libraries,
+and CLI parsers must return a status or raise an error so `main` retains
+control of cleanup, reporting, and the final exit status. The sole mechanism
+exception is `p101_tool_run_child_main`: it is the entry point of a freshly
+forked child and must call `_exit` if `exec` fails, because returning would
+resume the parent's workflow in the child.
+
+Each function also converges on one exit point. Returning functions use one
+final `return`; a `void` function may use its closing brace as the single
+implicit return. `main` follows the same structure and makes one final process
+status decision for the shell. This keeps cleanup, error reporting, and state
+commit decisions in one visible place.
 
 `P101-ERR-004` is intentionally strict. Enable it with `-S` when code must
 preserve the first failure and stop before any later fallible side effect. The
@@ -67,7 +82,7 @@ struct p101_env   *env = p101_env_create(err, NULL);
 ## Admitted inputs
 
 The user gives source/header paths. With `-i`, the tool consumes that exact
-P101FACT v2 snapshot and does not invoke Clang again. Otherwise, it invokes
+P101FACT v4 snapshot and does not invoke Clang again. Otherwise, it invokes
 `lib_c_facts` directly over the admitted translation units. If the current
 project has a Clang build named by
 `.last-build-dir`, or a `build-clang/compile_commands.json`, that database is
@@ -106,6 +121,11 @@ propagates its existing `err` state; the tool does not guess whether a numeric
 return value means success or failure. libclang's stable C API does not expose
 Clang's complete compiler CFG, so goto edges, switch fallthrough, exceptional
 C++ flow, and precise loop fixed points remain explicit blind spots.
+
+The single-exit check counts explicit return statements and terminating calls.
+It does not yet prove whether a `void` function with one conditional early
+return can also fall through its closing brace; review that shape as two
+control-flow exits even when only one `return` token exists.
 
 Direct libc calls are outside this tool's job; use `p101-wrapper-audit` for
 that. Third-party code is only checked if you ask this tool to scan it, and it

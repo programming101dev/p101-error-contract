@@ -30,6 +30,10 @@ grep -q 'P101-ERR-004' "$work/stdout"
 expect 1 -v "$work/sample.c"
 grep -q 'P101-ERR-005' "$work/stdout"
 grep -q 'P101-ERR-006' "$work/stdout"
+grep -q 'P101-ERR-007' "$work/stdout"
+grep -q 'P101-ERR-008' "$work/stdout"
+[ "$(grep -c 'P101-ERR-007' "$work/stdout")" -eq 1 ]
+grep -q '\[arbitrary_termination\]' "$work/stdout"
 expect 1 -S "$work/sample.c"
 for diagnostic_id in \
   P101-ERR-001 \
@@ -37,19 +41,44 @@ for diagnostic_id in \
   P101-ERR-003 \
   P101-ERR-004 \
   P101-ERR-005 \
-  P101-ERR-006
+  P101-ERR-006 \
+  P101-ERR-007 \
+  P101-ERR-008
 do
   grep -q "$diagnostic_id" "$work/stdout"
 done
 expect 1 -j -v "$work/sample.c"
 expect 1 -q "$work/sample.c"
 cat >"$work/balanced.tsv" <<'FACTS'
-P101FACT	2	CALL	balanced.c	balanced	0	1	p101_error_create	0	0
-P101FACT	2	CALL	balanced.c	balanced	0	2	p101_error_destroy	0	0
-P101FACT	2	CALL	balanced.c	balanced	0	3	p101_env_create	0	0
-P101FACT	2	CALL	balanced.c	balanced	0	4	p101_env_destroy	0	0
+P101FACT	4	CALL	balanced.c	balanced	0	1	p101_error_create	0	0	balanced
+P101FACT	4	CALL	balanced.c	balanced	0	2	p101_error_destroy	0	0	balanced
+P101FACT	4	CALL	balanced.c	balanced	0	3	p101_env_create	0	0	balanced
+P101FACT	4	CALL	balanced.c	balanced	0	4	p101_env_destroy	0	0	balanced
 FACTS
 expect 0 -i "$work/balanced.tsv"
+cat >"$work/termination.tsv" <<'FACTS'
+P101FACT	4	FUNCTION	termination.c	termination	0	1	helper	1	0
+P101FACT	4	CALL	termination.c	termination	0	3	exit	0	0	helper
+FACTS
+expect 1 -i "$work/termination.tsv"
+grep -q 'P101-ERR-007' "$work/stdout"
+cat >"$work/multiple-exits.tsv" <<'FACTS'
+P101FACT	4	FUNCTION	multiple.c	multiple	0	1	helper	1	0
+P101FACT	4	NOTE	multiple.c	multiple	0	3	FUNCTION_RETURN	helper	5
+P101FACT	4	NOTE	multiple.c	multiple	0	7	FUNCTION_RETURN	helper	5
+FACTS
+expect 1 -i "$work/multiple-exits.tsv"
+grep -q 'P101-ERR-008' "$work/stdout"
+cat >"$work/single-exit.tsv" <<'FACTS'
+P101FACT	4	FUNCTION	single.c	single	0	1	helper	1	0
+P101FACT	4	NOTE	single.c	single	0	3	FUNCTION_RETURN	helper	5
+FACTS
+expect 0 -i "$work/single-exit.tsv"
+cat >"$work/main-exit.tsv" <<'FACTS'
+P101FACT	4	FUNCTION	main.c	main	0	1	main	1	0
+P101FACT	4	CALL	main.c	main	0	3	exit	0	0	main
+FACTS
+expect 0 -i "$work/main-exit.tsv"
 expect 2 -i ''
 expect 2 -C ''
 expect 2 -i facts -C db
@@ -64,11 +93,11 @@ printf 'not a fact\n' >"$work/other.tsv"
 expect 2 -i "$work/other.tsv"
 printf 'P101FACT\t99\tFILE\tx\tx\t0\t0\n' >"$work/bad-version.tsv"
 expect 2 -i "$work/bad-version.tsv"
-printf 'P101FACT\t2\tFILE\n' >"$work/malformed.tsv"
+printf 'P101FACT\t4\tFILE\n' >"$work/malformed.tsv"
 expect 2 -i "$work/malformed.tsv"
 {
   printf '%4095s' '' | tr ' ' x
-  printf 'tail\nP101FACT\t2\tFILE\tx\tx\t0\t0\n'
+  printf 'tail\nP101FACT\t4\tFILE\tx\tx\t0\t0\n'
 } >"$work/overlong.tsv"
 expect 0 -i "$work/overlong.tsv"
 set +e

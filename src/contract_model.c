@@ -23,52 +23,49 @@ void p101_error_contract_load_facts(const struct p101_env *env, struct p101_erro
     if(args->facts_path == NULL)
     {
         p101_error_contract_load_analysis(env, err, args, model);
-        return;
-    }
-
-    stream     = p101_fopen(env, err, args->facts_path, "r");
-    fact_count = 0U;
-    if(stream == NULL)
-    {
-        return;
-    }
-
-    while(p101_fgets(env, err, line, sizeof(line), stream) != NULL)
-    {
-        struct p101_c_fact      fact;
-        enum p101_c_fact_status status;
-
-        if(!fact_line_is_complete(env, err, stream, line))
-        {
-            continue;
-        }
-
-        status = p101_c_fact_parse_line(env, err, line, &fact);
-        if(status == P101_C_FACT_OTHER)
-        {
-            continue;
-        }
-        if(status != P101_C_FACT_OK)
-        {
-            P101_ERROR_RAISE_USER(err, "The saved fact stream contains an invalid record.", ERR_USAGE);
-            break;
-        }
-
-        apply_fact(env, err, model, &fact);
-        fact_count++;
-    }
-
-    if(p101_error_has_error(err))
-    {
-        p101_fclose(env, NULL, stream);    // P101_ERROR_CONTRACT_ALLOW_NO_ERROR: cleanup preserves the fact-loading error.
     }
     else
     {
-        p101_fclose(env, err, stream);
-    }
-    if(p101_error_has_no_error(err) && fact_count == 0U)
-    {
-        P101_ERROR_RAISE_USER(err, "The fact stream did not contain any p101 C facts.", ERR_USAGE);
+        stream     = p101_fopen(env, err, args->facts_path, "r");
+        fact_count = 0U;
+
+        while(stream != NULL && p101_fgets(env, err, line, sizeof(line), stream) != NULL)
+        {
+            struct p101_c_fact      fact;
+            enum p101_c_fact_status status;
+
+            if(fact_line_is_complete(env, err, stream, line))
+            {
+                status = p101_c_fact_parse_line(env, err, line, &fact);
+                if(status != P101_C_FACT_OTHER)
+                {
+                    if(status != P101_C_FACT_OK)
+                    {
+                        P101_ERROR_RAISE_USER(err, "The saved fact stream contains an invalid record.", ERR_USAGE);
+                        break;
+                    }
+
+                    apply_fact(env, err, model, &fact);
+                    fact_count++;
+                }
+            }
+        }
+
+        if(stream != NULL)
+        {
+            if(p101_error_has_error(err))
+            {
+                p101_fclose(env, NULL, stream);    // P101_ERROR_CONTRACT_ALLOW_NO_ERROR: cleanup preserves the fact-loading error.
+            }
+            else
+            {
+                p101_fclose(env, err, stream);
+            }
+        }
+        if(p101_error_has_no_error(err) && fact_count == 0U)
+        {
+            P101_ERROR_RAISE_USER(err, "The fact stream did not contain any p101 C facts.", ERR_USAGE);
+        }
     }
 }
 
@@ -89,6 +86,8 @@ static void apply_fact(const struct p101_env *env, struct p101_error *err, struc
             break;
         case P101_C_FACT_KIND_INCLUDE:
         case P101_C_FACT_KIND_TYPE:
+        case P101_C_FACT_KIND_ENUM:
+        case P101_C_FACT_KIND_ENUMERATOR:
         case P101_C_FACT_KIND_MACRO:
             break;
         case P101_C_FACT_KIND_FUNCTION:
@@ -99,7 +98,11 @@ static void apply_fact(const struct p101_env *env, struct p101_error *err, struc
             break;
         case P101_C_FACT_KIND_CALL:
             record_ownership_call(env, err, model, fact);
-            if(fact->flag1 || fact->flag2)
+            if(p101_error_contract_is_process_termination_call(env, fact->value))
+            {
+                add_event(env, err, model, CONTRACT_EVENT_PROCESS_TERMINATION, fact);
+            }
+            else if(fact->flag1 || fact->flag2)
             {
                 add_event(env, err, model, CONTRACT_EVENT_CALL, fact);
             }
@@ -145,6 +148,10 @@ static void apply_fact(const struct p101_env *env, struct p101_error *err, struc
             {
                 add_event(env, err, model, CONTRACT_EVENT_ERROR_UNCHECKED_CHAIN, fact);
             }
+            else if(p101_strcmp(env, fact->value, "FUNCTION_RETURN") == 0)
+            {
+                add_event(env, err, model, CONTRACT_EVENT_FUNCTION_RETURN, fact);
+            }
             break;
         default:
             break;
@@ -168,8 +175,23 @@ static void add_function(const struct p101_env *env, struct p101_error *err, str
 
 static void add_event(const struct p101_env *env, struct p101_error *err, struct contract_model *model, enum contract_event_kind kind, const struct p101_c_fact *fact)
 {
+    size_t event_start;
+
     P101_TRACE_SCOPE(env);
-    p101_contract_model_add_event(env, err, model, kind, fact->path, fact->value, NULL, fact->line, 0U, 0U, (kind == CONTRACT_EVENT_CALL && fact->flag1) != 0, (kind == CONTRACT_EVENT_CALL && fact->flag2) != 0, "Too many events in fact stream.");
+    event_start = kind == CONTRACT_EVENT_FUNCTION_RETURN ? fact->column : 0U;
+    p101_contract_model_add_event(env,
+                                  err,
+                                  model,
+                                  kind,
+                                  fact->path,
+                                  fact->value,
+                                  fact->caller,
+                                  fact->line,
+                                  event_start,
+                                  0U,
+                                  (kind == CONTRACT_EVENT_CALL && fact->flag1) != 0,
+                                  (kind == CONTRACT_EVENT_CALL && fact->flag2) != 0,
+                                  "Too many events in fact stream.");
 }
 
 static void set_function_contract(const struct p101_env *env, struct contract_model *model, const struct p101_c_fact *fact, bool is_env)

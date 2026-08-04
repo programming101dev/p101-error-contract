@@ -77,7 +77,11 @@ static bool apply_record(const struct p101_env *env, struct p101_error *err, con
     else if(record->kind == P101_C_ANALYSIS_CALL)
     {
         p101_contract_model_record_ownership(env, err, model, record->path, record->line, record->name);
-        if(record->has_env_parameter || record->has_error_parameter)
+        if(p101_error_contract_is_process_termination_call(env, record->name))
+        {
+            p101_contract_model_add_event(env, err, model, CONTRACT_EVENT_PROCESS_TERMINATION, record->path, record->name, record->caller, record->line, record->start_offset, record->end_offset, false, false, "Too many events in native analysis.");
+        }
+        else if(record->has_env_parameter || record->has_error_parameter)
         {
             p101_contract_model_add_event(env,
                                           err,
@@ -119,7 +123,14 @@ static void apply_note(const struct p101_env *env, struct p101_error *err, struc
     }
     else if(note_kind(env, record->name, &kind))
     {
-        p101_contract_model_add_event(env, err, model, kind, record->path, record->name, record->caller, record->line, record->start_offset, record->end_offset, false, false, "Too many events in native analysis.");
+        size_t event_start;
+
+        event_start = record->start_offset;
+        if(kind == CONTRACT_EVENT_FUNCTION_RETURN && event_start == 0U)
+        {
+            event_start = record->column;
+        }
+        p101_contract_model_add_event(env, err, model, kind, record->path, record->name, record->caller, record->line, event_start, record->end_offset, false, false, "Too many events in native analysis.");
     }
 }
 
@@ -138,15 +149,77 @@ static bool note_kind(const struct p101_env *env, const char *name, enum contrac
         {"ERROR_DISCARD",         CONTRACT_EVENT_ERROR_DISCARD        },
         {"ERROR_PROPAGATED",      CONTRACT_EVENT_ERROR_PROPAGATED     },
         {"ERROR_UNCHECKED_CHAIN", CONTRACT_EVENT_ERROR_UNCHECKED_CHAIN},
+        {"FUNCTION_RETURN",       CONTRACT_EVENT_FUNCTION_RETURN      },
     };
 
-    for(size_t index = 0U; index < sizeof(mappings) / sizeof(mappings[0]); index++)
+    bool found;
+
+    found = false;
+    for(size_t index = 0U; index < sizeof(mappings) / sizeof(mappings[0]) && !found; index++)
     {
         if(p101_strcmp(env, name, mappings[index].name) == 0)
         {
             *kind = mappings[index].kind;
-            return true;
+            found = true;
         }
     }
-    return false;
+    return found;
+}
+
+bool p101_error_contract_is_process_termination_call(const struct p101_env *env, const char *name)
+{
+    static const char *const names[] = {
+        "_Exit",
+        "_exit",
+        "abort",
+        "err",
+        "errx",
+        "exit",
+        "p101_abort",
+        "p101_err",
+        "p101_errx",
+        "p101_exit",
+        "p101_exit_immediately",
+        "p101_posix_exit_immediately",
+        "p101_quick_exit",
+        "p101_verr",
+        "p101_verrx",
+        "quick_exit",
+        "verr",
+        "verrx",
+    };
+    bool found;
+
+    found = false;
+    for(size_t index = 0U; index < sizeof(names) / sizeof(names[0]) && !found; index++)
+    {
+        if(p101_strcmp(env, name, names[index]) == 0)
+        {
+            found = true;
+        }
+    }
+    return found;
+}
+
+bool p101_error_contract_is_termination_adapter(const struct p101_env *env, const char *caller, const char *callee)
+{
+    static const struct
+    {
+        const char *caller;
+        const char *callee;
+    } adapters[] = {
+        {"p101_tool_run_child_main", "_exit"},
+    };
+
+    bool found;
+
+    found = false;
+    for(size_t index = 0U; caller != NULL && callee != NULL && index < sizeof(adapters) / sizeof(adapters[0]) && !found; index++)
+    {
+        if(p101_strcmp(env, caller, adapters[index].caller) == 0 && p101_strcmp(env, callee, adapters[index].callee) == 0)
+        {
+            found = true;
+        }
+    }
+    return found;
 }

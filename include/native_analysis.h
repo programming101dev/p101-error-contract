@@ -7,5 +7,7 @@
 #include <p101_error/error.h>
 
 void p101_error_contract_load_analysis(const struct p101_env *env, struct p101_error *err, const struct arguments *args, struct contract_model *model);
+bool p101_error_contract_is_process_termination_call(const struct p101_env *env, const char *name);
+bool p101_error_contract_is_termination_adapter(const struct p101_env *env, const char *caller, const char *callee);
 
 #endif

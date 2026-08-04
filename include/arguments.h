@@ -19,6 +19,7 @@ struct arguments
     bool        quiet;
     bool        strict_sequence;
     bool        verbose;
+    bool        show_help;
 };
 
 #endif    // P101_ERROR_CONTRACT_ARGUMENTS_H
