@@ -1,6 +1,6 @@
 struct p101_env;
 struct p101_error;
-int p101_open(const struct p101_env *, struct p101_error *, const char *, int, ...);
+int                p101_open(const struct p101_env *, struct p101_error *, const char *, int, ...);
 struct p101_error *p101_error_create(_Bool);
 void               p101_error_destroy(struct p101_error *);
 struct p101_env   *p101_env_create(struct p101_error *, void *);

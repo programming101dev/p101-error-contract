@@ -3,14 +3,14 @@
 
 enum
 {
-    MSG_LEN                 = 256,
-    READ_BUF_LEN            = 4096,
-    CONTRACT_PATH_LEN       = 4096,
-    MAX_FACT_FUNCTIONS      = 8192,
-    MAX_FACT_EVENTS         = 65536,
-    FUNCTION_NAME_LEN       = 256,
-    EXIT_FINDINGS           = 1,
-    EXIT_TROUBLE            = 2
+    MSG_LEN            = 256,
+    READ_BUF_LEN       = 4096,
+    CONTRACT_PATH_LEN  = 4096,
+    MAX_FACT_FUNCTIONS = 8192,
+    MAX_FACT_EVENTS    = 65536,
+    FUNCTION_NAME_LEN  = 256,
+    EXIT_FINDINGS      = 1,
+    EXIT_TROUBLE       = 2
 };
 
 #define DEFAULT_SOURCE_PATH "src"

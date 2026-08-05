@@ -6,8 +6,17 @@
 static struct p101_error *error;
 static struct p101_env   *env;
 
-void setUp(void)    { error = p101_error_create(false); env = p101_env_create(error, NULL); }
-void tearDown(void) { p101_env_destroy(env); p101_error_destroy(error); }
+void setUp(void)
+{
+    error = p101_error_create(false);
+    env   = p101_env_create(error, NULL);
+}
+
+void tearDown(void)
+{
+    p101_env_destroy(env);
+    p101_error_destroy(error);
+}
 
 static void test_strlen_counts_characters(void)
 {
