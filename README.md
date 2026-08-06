@@ -1,8 +1,9 @@
 # p101-error-contract
 
-`p101-error-contract` checks a small but important p101 convention: when a
-function uses p101 wrappers, tracing, or p101 error macros, the function should
-make its `env` and `err` contracts visible.
+`p101-error-contract` checks explicit, inspectable function-level control and
+error contracts. When a function uses p101 wrappers, tracing, or p101 error
+macros, it must make its `env` and `err` contracts visible. Every function-call
+result must also be isolated before another expression consumes it.
 
 The normal path consumes native libclang records directly from `lib_c_facts`,
 including exact function extents and caller identity, so it does not own a
@@ -38,7 +39,8 @@ If no path is supplied, `src` is scanned.
 | `P101-ERR-005` | A source file creates more `p101_error` objects than it destroys. |
 | `P101-ERR-006` | A source file creates more `p101_env` objects than it destroys. |
 | `P101-ERR-007` | A function other than `main` terminates the process instead of returning a status or raising through `p101_error`. |
-| `P101-ERR-008` | A function contains more than one explicit exit point. |
+| `P101-ERR-008` | A return is not the function's final top-level statement, or the function contains more than one explicit exit point. |
+| `P101-ERR-009` | A call is embedded in an argument, condition, return, cast, arithmetic operation, or another larger expression instead of being isolated in its own statement or named variable. |
 
 Process termination is an application-boundary decision. Helpers, libraries,
 and CLI parsers must return a status or raise an error so `main` retains
@@ -52,6 +54,33 @@ final `return`; a `void` function may use its closing brace as the single
 implicit return. `main` follows the same structure and makes one final process
 status decision for the shell. This keeps cleanup, error reporting, and state
 commit decisions in one visible place.
+
+Function calls are isolated for the same reason. A call whose result is
+intentionally ignored is a complete statement:
+
+```c
+notify();
+```
+
+When another operation consumes a call's result, the call must be the entire
+initializer or right-hand side of a simple assignment:
+
+```c
+ready  = is_ready();
+result = transform(input);
+```
+
+The named value is then used by conditions, arguments, returns, casts, and
+larger expressions. Calls such as `if(is_ready())`, `transform(read_value())`,
+`return transform(input)`, and `(void)transform(input)` are findings. Calls
+generated inside a macro definition are excluded because the invocation site
+cannot materialize an implementation detail it did not spell.
+
+This rule primarily improves debugger stops, watch expressions, logging, and
+source-level inspection. A conforming compiler commonly optimizes the temporary
+away, so the contract does not claim an automatic runtime performance
+improvement. It can avoid real work only when the refactor also prevents
+duplicate evaluation.
 
 `P101-ERR-004` is intentionally strict. Enable it with `-S` when code must
 preserve the first failure and stop before any later fallible side effect. The
@@ -82,7 +111,7 @@ struct p101_env   *env = p101_env_create(err, NULL);
 ## Admitted inputs
 
 The user gives source/header paths. With `-i`, the tool consumes that exact
-P101FACT v4 snapshot and does not invoke Clang again. Otherwise, it invokes
+P101FACT v6 snapshot and does not invoke Clang again. Otherwise, it invokes
 `lib_c_facts` directly over the admitted translation units. If the current
 project has a Clang build named by
 `.last-build-dir`, or a `build-clang/compile_commands.json`, that database is
@@ -122,10 +151,19 @@ return value means success or failure. libclang's stable C API does not expose
 Clang's complete compiler CFG, so goto edges, switch fallthrough, exceptional
 C++ flow, and precise loop fixed points remain explicit blind spots.
 
-The single-exit check counts explicit return statements and terminating calls.
-It does not yet prove whether a `void` function with one conditional early
-return can also fall through its closing brace; review that shape as two
-control-flow exits even when only one `return` token exists.
+The single-exit check uses AST statement structure: a returning function's sole
+`return` must be the final top-level statement, while a `void` function may use
+its closing brace as its sole exit. It also counts explicit terminating calls.
+Clang's stable C API does not expose a complete CFG, so computed jumps,
+exceptional C++ flow, and nonlocal control transfer remain blind spots.
+
+The call-isolation check uses the call's immediate AST parent. Standalone calls,
+direct variable initializers, and direct simple assignments are admitted; every
+other parent shape is rejected. The stable libclang C API does not expose a
+binary-operator opcode, so identifying the simple `=` assignment is the narrow
+lexical exception: `lib_c_facts` inspects that parent expression's tokens for
+the exact `=` operator. It does not use function or variable names to classify
+the call.
 
 Direct libc calls are outside this tool's job; use `p101-wrapper-audit` for
 that. Third-party code is only checked if you ask this tool to scan it, and it

@@ -42,7 +42,7 @@ void p101_error_contract_report_finding(const struct p101_env *env, struct p101_
         json_string(env, err, function_name);
         p101_fputs(env, err, "},\"message\":", stdout);
         json_string(env, err, message);
-        p101_fputs(env, err, ",\"evidence\":{\"fact_schema\":\"P101FACT-v4\"}}", stdout);
+        p101_fputs(env, err, ",\"evidence\":{\"fact_schema\":\"P101FACT-v6\"}}", stdout);
     }
     else
     {

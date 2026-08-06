@@ -12,7 +12,7 @@ Run `./change-compiler.sh -c <compiler>` once before building.
 | `./build-clang/p101-error-contract src` | Scan source for missing visible p101 `env` / `err` contracts using native `lib_c_facts` analysis. |
 | `./build-clang/p101-error-contract -C build-clang/compile_commands.json src` | Select the Clang compilation database explicitly. |
 | `./build-clang/p101-error-contract -j src` | Emit JSON findings and summary. |
-| `./build-clang/p101-error-contract -i source-facts.tsv src include` | Reuse an existing P101FACT v4 snapshot. |
+| `./build-clang/p101-error-contract -i source-facts.tsv src include` | Reuse an existing P101FACT v6 snapshot. |
 | `./clean.sh` | Remove build and generated output. |
 
 Less common: `./build-all.sh` builds with every supported compiler,

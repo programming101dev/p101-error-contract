@@ -32,23 +32,35 @@ void tearDown(void)
     p101_error_destroy(error);
 }
 
-static void apply_kind(struct contract_model *model, enum p101_c_fact_kind kind, const char *value, size_t line, bool flag1, bool flag2)
+static void apply_kind(struct contract_model *model, enum p101_c_fact_kind kind, const char *value, size_t line, bool first_semantic_flag, bool second_semantic_flag)
 {
     struct p101_c_fact fact;
 
     p101_memset(env, &fact, 0, sizeof(fact));
-    fact.kind  = kind;
-    fact.path  = "file.c";
-    fact.value = (char *)value;
-    fact.line  = line;
-    fact.flag1 = flag1;
-    fact.flag2 = flag2;
+    fact.kind       = kind;
+    fact.path       = "file.c";
+    fact.value      = (char *)value;
+    fact.usr        = (char *)value;
+    fact.caller     = "function";
+    fact.caller_usr = "c:@F@function";
+    fact.line       = line;
+    if(kind == P101_C_FACT_KIND_FUNCTION)
+    {
+        fact.usr            = "c:@F@function";
+        fact.is_static      = first_semantic_flag;
+        fact.is_declaration = second_semantic_flag;
+    }
+    else if(kind == P101_C_FACT_KIND_CALL)
+    {
+        fact.has_env_parameter   = first_semantic_flag;
+        fact.has_error_parameter = second_semantic_flag;
+    }
     p101_error_contract_test_apply_fact(env, error, model, &fact);
 }
 
 static void test_model_fact_kinds_and_limits(void)
 {
-    const char *notes[] = {"ENV_CONTRACT", "ERROR_CONTRACT", "ENV_USE", "ERROR_USE", "TRACE_USE", "ERROR_CHECK", "ERROR_OPTIONAL", "ERROR_DISCARD", "ERROR_PROPAGATED", "ERROR_UNCHECKED_CHAIN", "OTHER"};
+    const char *notes[] = {"ENV_CONTRACT", "ERROR_CONTRACT", "ENV_USE", "ERROR_USE", "TYPE_SEMANTIC_ROLE:p101:trace-scope", "ERROR_CHECK", "ERROR_OPTIONAL", "ERROR_DISCARD", "ERROR_PROPAGATED", "ERROR_UNCHECKED_CHAIN", "CALL_NOT_ISOLATED", "OTHER"};
     char        dst[8];
     char        long_line[READ_BUF_LEN];
     FILE       *stream;
@@ -66,12 +78,12 @@ static void test_model_fact_kinds_and_limits(void)
     apply_kind(model, P101_C_FACT_KIND_CALL, "ignored", 12U, false, false);
     apply_kind(model, P101_C_FACT_KIND_CALL, "error-only", 12U, false, true);
     apply_kind(model, P101_C_FACT_KIND_CALL, "call", 13U, true, true);
-    apply_kind(model, P101_C_FACT_KIND_CALL, "p101_error_create", 14U, false, false);
-    apply_kind(model, P101_C_FACT_KIND_CALL, "p101_error_create", 15U, false, false);
-    apply_kind(model, P101_C_FACT_KIND_CALL, "p101_error_destroy", 16U, false, false);
-    apply_kind(model, P101_C_FACT_KIND_CALL, "p101_env_create", 17U, false, false);
-    apply_kind(model, P101_C_FACT_KIND_CALL, "p101_env_create", 18U, false, false);
-    apply_kind(model, P101_C_FACT_KIND_CALL, "p101_env_destroy", 19U, false, false);
+    apply_kind(model, P101_C_FACT_KIND_NOTE, "CALLEE_SEMANTIC_ROLE:p101:ownership:error:acquire", 14U, false, false);
+    apply_kind(model, P101_C_FACT_KIND_NOTE, "CALLEE_SEMANTIC_ROLE:p101:ownership:error:acquire", 15U, false, false);
+    apply_kind(model, P101_C_FACT_KIND_NOTE, "CALLEE_SEMANTIC_ROLE:p101:ownership:error:release", 16U, false, false);
+    apply_kind(model, P101_C_FACT_KIND_NOTE, "CALLEE_SEMANTIC_ROLE:p101:ownership:env:acquire", 17U, false, false);
+    apply_kind(model, P101_C_FACT_KIND_NOTE, "CALLEE_SEMANTIC_ROLE:p101:ownership:env:acquire", 18U, false, false);
+    apply_kind(model, P101_C_FACT_KIND_NOTE, "CALLEE_SEMANTIC_ROLE:p101:ownership:env:release", 19U, false, false);
     for(size_t i = 0U; i < sizeof(notes) / sizeof(notes[0]); i++)
     {
         apply_kind(model, P101_C_FACT_KIND_NOTE, notes[i], 10U + i, false, false);
@@ -99,7 +111,7 @@ static void test_model_fact_kinds_and_limits(void)
     p101_error_reset(error);
     model->ownership_file_count = MAX_FACT_FUNCTIONS;
     p101_strncpy(env, model->ownership_files[0].path, "occupied.c", sizeof(model->ownership_files[0].path));
-    apply_kind(model, P101_C_FACT_KIND_CALL, "p101_error_create", 1U, false, false);
+    apply_kind(model, P101_C_FACT_KIND_NOTE, "CALLEE_SEMANTIC_ROLE:p101:ownership:error:acquire", 1U, false, false);
     TEST_ASSERT_TRUE(p101_error_has_error(error));
     p101_error_reset(error);
 
@@ -164,7 +176,7 @@ static void test_analysis_reports_all_contract_findings(void)
         model->events[index].line = event_line;                                                                                                                                                                                                                    \
         p101_strncpy(env, model->events[index].path, "a.c", sizeof(model->events[index].path));                                                                                                                                                                    \
     } while(0)
-    model->event_count = 9U;
+    model->event_count = 10U;
     ADD_EVENT(0, CONTRACT_EVENT_TRACE_USE, 11U);
     ADD_EVENT(1, CONTRACT_EVENT_ERROR_CHECK, 12U);
     ADD_EVENT(2, CONTRACT_EVENT_ERROR_DISCARD, 13U);
@@ -175,10 +187,11 @@ static void test_analysis_reports_all_contract_findings(void)
     model->events[6].needs_env = model->events[6].needs_error = true;
     ADD_EVENT(7, CONTRACT_EVENT_ERROR_OPTIONAL, 103U);
     ADD_EVENT(8, CONTRACT_EVENT_ERROR_CHECK, 15U);
+    ADD_EVENT(9, CONTRACT_EVENT_CALL_NOT_ISOLATED, 16U);
 #undef ADD_EVENT
 
     p101_error_contract_test_analyze(env, error, model, &report);
-    TEST_ASSERT_EQUAL_size_t(4U, report.findings);
+    TEST_ASSERT_EQUAL_size_t(5U, report.findings);
 
     args.json = true;
     p101_error_contract_report_begin(env, error, &report, &args);
@@ -285,7 +298,7 @@ static void test_function_boundaries_and_unmatched_optional_marker(void)
     model->events[2].kind        = CONTRACT_EVENT_ERROR_OPTIONAL;
     model->events[2].line        = 13U;
     model->events[3].kind        = CONTRACT_EVENT_ERROR_OPTIONAL;
-    model->events[3].line        = 12U;
+    model->events[3].line        = 13U;
     model->events[4].kind        = CONTRACT_EVENT_CALL;
     model->events[4].line        = 13U;
     model->events[4].needs_error = true;

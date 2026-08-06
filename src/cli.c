@@ -163,7 +163,7 @@ void p101_error_contract_usage(const struct p101_env *env, struct p101_error *er
     p101_fputs(env, err, "  -q        Quiet: print only findings, not the clean summary.\n", stream);
     p101_fputs(env, err, "  -S        Strict sequencing: report unchecked chains of fallible calls.\n", stream);
     p101_fputs(env, err, "  -v        Describe the native lib_c_facts scan on stderr.\n", stream);
-    p101_fputs(env, err, "  -i <file> Read a reusable P101FACT v4 snapshot instead of invoking Clang.\n", stream);
+    p101_fputs(env, err, "  -i <file> Read a reusable P101FACT v6 snapshot instead of invoking Clang.\n", stream);
     p101_fputs(env, err, "  -C <file> Compile database used by lib_c_facts.\n", stream);
     p101_fputs(env, err, "  -h        Show this help.\n", stream);
     p101_fputs(env, err, "\nIf no path is given, src is scanned.\n", stream);

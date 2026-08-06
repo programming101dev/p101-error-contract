@@ -10,7 +10,7 @@ static void apply_fact(const struct p101_env *env, struct p101_error *err, struc
 static void add_function(const struct p101_env *env, struct p101_error *err, struct contract_model *model, const struct p101_c_fact *fact);
 static void add_event(const struct p101_env *env, struct p101_error *err, struct contract_model *model, enum contract_event_kind kind, const struct p101_c_fact *fact);
 static void set_function_contract(const struct p101_env *env, struct contract_model *model, const struct p101_c_fact *fact, bool is_env);
-static void record_ownership_call(const struct p101_env *env, struct p101_error *err, struct contract_model *model, const struct p101_c_fact *fact);
+static bool record_ownership_role(const struct p101_env *env, struct p101_error *err, struct contract_model *model, const struct p101_c_fact *fact);
 static bool fact_line_is_complete(const struct p101_env *env, struct p101_error *err, FILE *stream, char *line);
 
 void p101_error_contract_load_facts(const struct p101_env *env, struct p101_error *err, const struct arguments *args, struct contract_model *model)
@@ -55,7 +55,7 @@ void p101_error_contract_load_facts(const struct p101_env *env, struct p101_erro
         {
             if(p101_error_has_error(err))
             {
-                p101_fclose(env, NULL, stream);    // P101_ERROR_CONTRACT_ALLOW_NO_ERROR: cleanup preserves the fact-loading error.
+                p101_fclose(env, P101_ERROR_OPTIONAL, stream);    // P101_ERROR_OPTIONAL rationale: cleanup preserves the fact-loading error.
             }
             else
             {
@@ -91,24 +91,31 @@ static void apply_fact(const struct p101_env *env, struct p101_error *err, struc
         case P101_C_FACT_KIND_MACRO:
             break;
         case P101_C_FACT_KIND_FUNCTION:
-            if(!fact->flag2)
+            if(!fact->is_declaration)
             {
                 add_function(env, err, model, fact);
             }
             break;
         case P101_C_FACT_KIND_CALL:
-            record_ownership_call(env, err, model, fact);
-            if(p101_error_contract_is_process_termination_call(env, fact->value))
+            if(p101_error_contract_is_process_termination_call(env, fact->usr))
             {
                 add_event(env, err, model, CONTRACT_EVENT_PROCESS_TERMINATION, fact);
             }
-            else if(fact->flag1 || fact->flag2)
+            else if(fact->has_env_parameter || fact->has_error_parameter)
             {
                 add_event(env, err, model, CONTRACT_EVENT_CALL, fact);
             }
             break;
         case P101_C_FACT_KIND_NOTE:
-            if(p101_strcmp(env, fact->value, "ENV_CONTRACT") == 0)
+            if(record_ownership_role(env, err, model, fact))
+            {
+                break;
+            }
+            if(p101_strcmp(env, fact->value, "SEMANTIC_ROLE:p101:termination-adapter") == 0)
+            {
+                p101_contract_model_set_termination_adapter(env, model, fact->path, fact->caller_usr);
+            }
+            else if(p101_strcmp(env, fact->value, "ENV_CONTRACT") == 0)
             {
                 set_function_contract(env, model, fact, true);
             }
@@ -124,7 +131,7 @@ static void apply_fact(const struct p101_env *env, struct p101_error *err, struc
             {
                 add_event(env, err, model, CONTRACT_EVENT_ERROR_USE, fact);
             }
-            else if(p101_strcmp(env, fact->value, "TRACE_USE") == 0)
+            else if(p101_strcmp(env, fact->value, "TYPE_SEMANTIC_ROLE:p101:trace-scope") == 0)
             {
                 add_event(env, err, model, CONTRACT_EVENT_TRACE_USE, fact);
             }
@@ -152,6 +159,14 @@ static void apply_fact(const struct p101_env *env, struct p101_error *err, struc
             {
                 add_event(env, err, model, CONTRACT_EVENT_FUNCTION_RETURN, fact);
             }
+            else if(p101_strcmp(env, fact->value, "FUNCTION_EARLY_RETURN") == 0)
+            {
+                add_event(env, err, model, CONTRACT_EVENT_FUNCTION_EARLY_RETURN, fact);
+            }
+            else if(p101_strcmp(env, fact->value, "CALL_NOT_ISOLATED") == 0)
+            {
+                add_event(env, err, model, CONTRACT_EVENT_CALL_NOT_ISOLATED, fact);
+            }
             break;
         default:
             break;
@@ -161,16 +176,24 @@ static void apply_fact(const struct p101_env *env, struct p101_error *err, struc
 #endif
 }
 
-static void record_ownership_call(const struct p101_env *env, struct p101_error *err, struct contract_model *model, const struct p101_c_fact *fact)
+static bool record_ownership_role(const struct p101_env *env, struct p101_error *err, struct contract_model *model, const struct p101_c_fact *fact)
 {
+    enum contract_ownership_kind kind;
+    bool                         found;
+
     P101_TRACE_SCOPE(env);
-    p101_contract_model_record_ownership(env, err, model, fact->path, fact->line, fact->value);
+    found = p101_contract_ownership_kind_from_role(env, fact->value, &kind);
+    if(found)
+    {
+        p101_contract_model_record_ownership(env, err, model, fact->path, fact->line, kind);
+    }
+    return found;
 }
 
 static void add_function(const struct p101_env *env, struct p101_error *err, struct contract_model *model, const struct p101_c_fact *fact)
 {
     P101_TRACE_SCOPE(env);
-    p101_contract_model_add_function(env, err, model, fact->path, fact->value, fact->line, 0U, 0U, "Too many functions in fact stream.");
+    p101_contract_model_add_function(env, err, model, fact->path, fact->value, fact->usr, fact->line, fact->start, fact->end, "Too many functions in fact stream.");
 }
 
 static void add_event(const struct p101_env *env, struct p101_error *err, struct contract_model *model, enum contract_event_kind kind, const struct p101_c_fact *fact)
@@ -178,7 +201,11 @@ static void add_event(const struct p101_env *env, struct p101_error *err, struct
     size_t event_start;
 
     P101_TRACE_SCOPE(env);
-    event_start = kind == CONTRACT_EVENT_FUNCTION_RETURN ? fact->column : 0U;
+    event_start = fact->start;
+    if((kind == CONTRACT_EVENT_FUNCTION_RETURN || kind == CONTRACT_EVENT_FUNCTION_EARLY_RETURN) && event_start == 0U)
+    {
+        event_start = fact->column;
+    }
     p101_contract_model_add_event(env,
                                   err,
                                   model,
@@ -186,17 +213,19 @@ static void add_event(const struct p101_env *env, struct p101_error *err, struct
                                   fact->path,
                                   fact->value,
                                   fact->caller,
+                                  fact->usr,
+                                  fact->caller_usr,
                                   fact->line,
                                   event_start,
-                                  0U,
-                                  (kind == CONTRACT_EVENT_CALL && fact->flag1) != 0,
-                                  (kind == CONTRACT_EVENT_CALL && fact->flag2) != 0,
+                                  fact->end,
+                                  (kind == CONTRACT_EVENT_CALL && fact->has_env_parameter) != 0,
+                                  (kind == CONTRACT_EVENT_CALL && fact->has_error_parameter) != 0,
                                   "Too many events in fact stream.");
 }
 
 static void set_function_contract(const struct p101_env *env, struct contract_model *model, const struct p101_c_fact *fact, bool is_env)
 {
-    p101_contract_model_set_contract(env, model, fact->path, fact->line, is_env);
+    p101_contract_model_set_contract(env, model, fact->path, fact->caller_usr, is_env);
 }
 
 static bool fact_line_is_complete(const struct p101_env *env, struct p101_error *err, FILE *stream, char *line)
