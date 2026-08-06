@@ -7,6 +7,8 @@ static bool identity_fits(const struct p101_env *env, const char *identity);
 
 bool p101_contract_ownership_kind_from_role(const struct p101_env *env, const char *role, enum contract_ownership_kind *kind)
 {
+    int p101_call_result_1;
+
     static const struct
     {
         const char                  *role;
@@ -23,7 +25,8 @@ bool p101_contract_ownership_kind_from_role(const struct p101_env *env, const ch
     found = false;
     for(size_t index = 0U; index < sizeof(mappings) / sizeof(mappings[0]) && !found; index++)
     {
-        if(p101_strcmp(env, role, mappings[index].role) == 0)
+        p101_call_result_1 = p101_strcmp(env, role, mappings[index].role);
+        if(p101_call_result_1 == 0)
         {
             *kind = mappings[index].kind;
             found = true;
@@ -34,18 +37,20 @@ bool p101_contract_ownership_kind_from_role(const struct p101_env *env, const ch
 
 void p101_contract_model_add_function(const struct p101_env *env, struct p101_error *err, struct contract_model *model, const char *path, const char *name, const char *usr, size_t line, size_t start, size_t end, const char *capacity_message)
 {
+    bool                      p101_call_result_2;
     struct contract_function *function;
 
     P101_TRACE_SCOPE(env);
     if(model->function_count >= MAX_FACT_FUNCTIONS)
     {
         P101_ERROR_RAISE_USER(err, capacity_message, ERR_TOOL);
-        return;
+        goto done;
     }
-    if(!identity_fits(env, usr))
+    p101_call_result_2 = identity_fits(env, usr);
+    if(!p101_call_result_2)
     {
         P101_ERROR_RAISE_USER(err, "A resolved function identity is too long for the error-contract model.", ERR_TOOL);
-        return;
+        goto done;
     }
     function = &model->functions[model->function_count++];
     copy_text(env, function->path, sizeof(function->path), path);
@@ -54,23 +59,46 @@ void p101_contract_model_add_function(const struct p101_env *env, struct p101_er
     function->line  = line;
     function->start = start;
     function->end   = end;
+
+done:
+    return;
 }
 
 void p101_contract_model_add_event(const struct p101_env *env, struct p101_error *err, struct contract_model *model, enum contract_event_kind kind, const char *path, const char *name, const char *caller, const char *usr, const char *caller_usr, size_t line,
                                    size_t start, size_t end, bool needs_env, bool needs_error, const char *capacity_message)
 {
+    int                    p101_expression_result_4;
+    bool                   p101_call_result_5;
+    bool                   p101_call_result_6;
     struct contract_event *event;
 
     P101_TRACE_SCOPE(env);
     if(model->event_count >= MAX_FACT_EVENTS)
     {
         P101_ERROR_RAISE_USER(err, capacity_message, ERR_TOOL);
-        return;
+        goto done;
     }
-    if(!identity_fits(env, usr) || !identity_fits(env, caller_usr))
+    p101_call_result_5 = identity_fits(env, usr);
+    if(!p101_call_result_5)
+    {
+        p101_expression_result_4 = 1;
+    }
+    else
+    {
+        p101_call_result_6 = identity_fits(env, caller_usr);
+        if(!p101_call_result_6)
+        {
+            p101_expression_result_4 = 1;
+        }
+        else
+        {
+            p101_expression_result_4 = 0;
+        }
+    }
+    if(p101_expression_result_4)
     {
         P101_ERROR_RAISE_USER(err, "A resolved call identity is too long for the error-contract model.", ERR_TOOL);
-        return;
+        goto done;
     }
     event = &model->events[model->event_count++];
     copy_text(env, event->path, sizeof(event->path), path);
@@ -84,17 +112,72 @@ void p101_contract_model_add_event(const struct p101_env *env, struct p101_error
     event->kind        = kind;
     event->needs_env   = needs_env;
     event->needs_error = needs_error;
+
+done:
+    return;
 }
 
 void p101_contract_model_set_contract(const struct p101_env *env, struct contract_model *model, const char *path, const char *function_usr, bool is_env)
 {
+    int p101_expression_result_7;
+    int p101_expression_result_8;
+    int p101_expression_result_9;
+    int p101_call_result_10;
+    int p101_call_result_11;
     P101_TRACE_SCOPE(env);
     for(size_t index = 0U; index < model->function_count; index++)
     {
         struct contract_function *function;
 
         function = &model->functions[index];
-        if(function_usr == NULL || function_usr[0] == '\0' || p101_strcmp(env, function->usr, function_usr) != 0 || p101_strcmp(env, function->path, path) != 0)
+        if(function_usr == NULL)
+        {
+            p101_expression_result_9 = 1;
+        }
+        else
+        {
+            if(function_usr[0] == '\0')
+            {
+                p101_expression_result_9 = 1;
+            }
+            else
+            {
+                p101_expression_result_9 = 0;
+            }
+        }
+        if(p101_expression_result_9)
+        {
+            p101_expression_result_8 = 1;
+        }
+        else
+        {
+            p101_call_result_10 = p101_strcmp(env, function->usr, function_usr);
+            if(p101_call_result_10 != 0)
+            {
+                p101_expression_result_8 = 1;
+            }
+            else
+            {
+                p101_expression_result_8 = 0;
+            }
+        }
+        if(p101_expression_result_8)
+        {
+            p101_expression_result_7 = 1;
+        }
+        else
+        {
+            p101_call_result_11 = p101_strcmp(env, function->path, path);
+            if(p101_call_result_11 != 0)
+            {
+                p101_expression_result_7 = 1;
+            }
+            else
+            {
+                p101_expression_result_7 = 0;
+            }
+        }
+        if(p101_expression_result_7)
         {
             continue;
         }
@@ -106,19 +189,50 @@ void p101_contract_model_set_contract(const struct p101_env *env, struct contrac
         {
             function->has_error_contract = true;
         }
-        return;
+        break;
     }
 }
 
 void p101_contract_model_set_termination_adapter(const struct p101_env *env, struct contract_model *model, const char *path, const char *function_usr)
 {
+    int p101_expression_result_12;
+    int p101_expression_result_13;
+    int p101_expression_result_14;
+    int p101_call_result_15;
+    int p101_call_result_16;
     P101_TRACE_SCOPE(env);
     for(size_t index = 0U; index < model->function_count; index++)
     {
         struct contract_function *function;
 
-        function = &model->functions[index];
-        if(function_usr != NULL && function_usr[0] != '\0' && p101_strcmp(env, function->usr, function_usr) == 0 && p101_strcmp(env, function->path, path) == 0)
+        function                  = &model->functions[index];
+        p101_expression_result_14 = 0;
+        if(function_usr != NULL)
+        {
+            if(function_usr[0] != '\0')
+            {
+                p101_expression_result_14 = 1;
+            }
+        }
+        p101_expression_result_13 = 0;
+        if(p101_expression_result_14)
+        {
+            p101_call_result_15 = p101_strcmp(env, function->usr, function_usr);
+            if(p101_call_result_15 == 0)
+            {
+                p101_expression_result_13 = 1;
+            }
+        }
+        p101_expression_result_12 = 0;
+        if(p101_expression_result_13)
+        {
+            p101_call_result_16 = p101_strcmp(env, function->path, path);
+            if(p101_call_result_16 == 0)
+            {
+                p101_expression_result_12 = 1;
+            }
+        }
+        if(p101_expression_result_12)
         {
             function->is_termination_adapter = true;
             break;
@@ -128,12 +242,14 @@ void p101_contract_model_set_termination_adapter(const struct p101_env *env, str
 
 void p101_contract_model_record_ownership(const struct p101_env *env, struct p101_error *err, struct contract_model *model, const char *path, size_t line, enum contract_ownership_kind kind)
 {
+    int                             p101_call_result_3;
     struct contract_ownership_file *owner;
 
     owner = NULL;
     for(size_t index = 0U; index < model->ownership_file_count; index++)
     {
-        if(p101_strcmp(env, model->ownership_files[index].path, path) == 0)
+        p101_call_result_3 = p101_strcmp(env, model->ownership_files[index].path, path);
+        if(p101_call_result_3 == 0)
         {
             owner = &model->ownership_files[index];
             break;

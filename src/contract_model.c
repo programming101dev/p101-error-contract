@@ -15,6 +15,11 @@ static bool fact_line_is_complete(const struct p101_env *env, struct p101_error 
 
 void p101_error_contract_load_facts(const struct p101_env *env, struct p101_error *err, const struct arguments *args, struct contract_model *model)
 {
+    int   p101_expression_result_20;
+    bool  p101_call_result_21;
+    bool  p101_call_result_1;
+    bool  p101_call_result_2;
+    char *line_result;
     P101_TRACE_SCOPE(env);
     if(args->facts_path == NULL)
     {
@@ -29,9 +34,19 @@ void p101_error_contract_load_facts(const struct p101_env *env, struct p101_erro
         stream     = p101_fopen(env, err, args->facts_path, "r");
         fact_count = 0U;
 
-        while(stream != NULL && p101_fgets(env, err, line, sizeof(line), stream) != NULL)
+        for(;;)
         {
-            if(fact_line_is_complete(env, err, stream, line))
+            if(stream == NULL)
+            {
+                break;
+            }
+            line_result = p101_fgets(env, err, line, sizeof(line), stream);
+            if(line_result == NULL)
+            {
+                break;
+            }
+            p101_call_result_1 = fact_line_is_complete(env, err, stream, line);
+            if(p101_call_result_1)
             {
                 struct p101_c_fact      fact;
                 enum p101_c_fact_status status;
@@ -53,7 +68,8 @@ void p101_error_contract_load_facts(const struct p101_env *env, struct p101_erro
 
         if(stream != NULL)
         {
-            if(p101_error_has_error(err))
+            p101_call_result_2 = p101_error_has_error(err);
+            if(p101_call_result_2)
             {
                 p101_fclose(env, P101_ERROR_OPTIONAL, stream);    // P101_ERROR_OPTIONAL rationale: cleanup preserves the fact-loading error.
             }
@@ -62,7 +78,16 @@ void p101_error_contract_load_facts(const struct p101_env *env, struct p101_erro
                 p101_fclose(env, err, stream);
             }
         }
-        if(p101_error_has_no_error(err) && fact_count == 0U)
+        p101_call_result_21       = p101_error_has_no_error(err);
+        p101_expression_result_20 = 0;
+        if(p101_call_result_21)
+        {
+            if(fact_count == 0U)
+            {
+                p101_expression_result_20 = 1;
+            }
+        }
+        if(p101_expression_result_20)
         {
             P101_ERROR_RAISE_USER(err, "The fact stream did not contain any p101 C facts.", ERR_USAGE);
         }
@@ -71,6 +96,22 @@ void p101_error_contract_load_facts(const struct p101_env *env, struct p101_erro
 
 static void apply_fact(const struct p101_env *env, struct p101_error *err, struct contract_model *model, const struct p101_c_fact *fact)
 {
+    int  p101_call_result_14;
+    int  p101_call_result_15;
+    int  p101_call_result_16;
+    int  p101_call_result_17;
+    int  p101_call_result_18;
+    int  p101_call_result_19;
+    int  p101_call_result_13;
+    int  p101_call_result_12;
+    int  p101_call_result_11;
+    int  p101_call_result_10;
+    int  p101_call_result_9;
+    int  p101_call_result_8;
+    bool p101_call_result_5;
+    bool p101_call_result_6;
+    int  p101_call_result_7;
+    int  p101_call_result_3;
     P101_TRACE_SCOPE(env);
 
 #ifdef __clang__
@@ -97,7 +138,9 @@ static void apply_fact(const struct p101_env *env, struct p101_error *err, struc
             }
             break;
         case P101_C_FACT_KIND_CALL:
-            if(p101_error_contract_is_process_termination_call(env, fact->usr))
+        {
+            p101_call_result_5 = p101_error_contract_is_process_termination_call(env, fact->usr);
+            if(p101_call_result_5)
             {
                 add_event(env, err, model, CONTRACT_EVENT_PROCESS_TERMINATION, fact);
             }
@@ -105,67 +148,124 @@ static void apply_fact(const struct p101_env *env, struct p101_error *err, struc
             {
                 add_event(env, err, model, CONTRACT_EVENT_CALL, fact);
             }
-            break;
+        }
+        break;
         case P101_C_FACT_KIND_NOTE:
-            if(record_ownership_role(env, err, model, fact))
+        {
+            p101_call_result_6 = record_ownership_role(env, err, model, fact);
+            if(p101_call_result_6)
             {
                 break;
             }
-            if(p101_strcmp(env, fact->value, "SEMANTIC_ROLE:p101:termination-adapter") == 0)
+        }
+            p101_call_result_3 = p101_strcmp(env, fact->value, "SEMANTIC_ROLE:p101:termination-adapter");
+            if(p101_call_result_3 == 0)
             {
                 p101_contract_model_set_termination_adapter(env, model, fact->path, fact->caller_usr);
             }
-            else if(p101_strcmp(env, fact->value, "ENV_CONTRACT") == 0)
+            else
             {
-                set_function_contract(env, model, fact, true);
-            }
-            else if(p101_strcmp(env, fact->value, "ERROR_CONTRACT") == 0)
-            {
-                set_function_contract(env, model, fact, false);
-            }
-            else if(p101_strcmp(env, fact->value, "ENV_USE") == 0)
-            {
-                add_event(env, err, model, CONTRACT_EVENT_ENV_USE, fact);
-            }
-            else if(p101_strcmp(env, fact->value, "ERROR_USE") == 0)
-            {
-                add_event(env, err, model, CONTRACT_EVENT_ERROR_USE, fact);
-            }
-            else if(p101_strcmp(env, fact->value, "TYPE_SEMANTIC_ROLE:p101:trace-scope") == 0)
-            {
-                add_event(env, err, model, CONTRACT_EVENT_TRACE_USE, fact);
-            }
-            else if(p101_strcmp(env, fact->value, "ERROR_CHECK") == 0)
-            {
-                add_event(env, err, model, CONTRACT_EVENT_ERROR_CHECK, fact);
-            }
-            else if(p101_strcmp(env, fact->value, "ERROR_OPTIONAL") == 0)
-            {
-                add_event(env, err, model, CONTRACT_EVENT_ERROR_OPTIONAL, fact);
-            }
-            else if(p101_strcmp(env, fact->value, "ERROR_DISCARD") == 0)
-            {
-                add_event(env, err, model, CONTRACT_EVENT_ERROR_DISCARD, fact);
-            }
-            else if(p101_strcmp(env, fact->value, "ERROR_PROPAGATED") == 0)
-            {
-                add_event(env, err, model, CONTRACT_EVENT_ERROR_PROPAGATED, fact);
-            }
-            else if(p101_strcmp(env, fact->value, "ERROR_UNCHECKED_CHAIN") == 0)
-            {
-                add_event(env, err, model, CONTRACT_EVENT_ERROR_UNCHECKED_CHAIN, fact);
-            }
-            else if(p101_strcmp(env, fact->value, "FUNCTION_RETURN") == 0)
-            {
-                add_event(env, err, model, CONTRACT_EVENT_FUNCTION_RETURN, fact);
-            }
-            else if(p101_strcmp(env, fact->value, "FUNCTION_EARLY_RETURN") == 0)
-            {
-                add_event(env, err, model, CONTRACT_EVENT_FUNCTION_EARLY_RETURN, fact);
-            }
-            else if(p101_strcmp(env, fact->value, "CALL_NOT_ISOLATED") == 0)
-            {
-                add_event(env, err, model, CONTRACT_EVENT_CALL_NOT_ISOLATED, fact);
+                p101_call_result_7 = p101_strcmp(env, fact->value, "ENV_CONTRACT");
+                if(p101_call_result_7 == 0)
+                {
+                    set_function_contract(env, model, fact, true);
+                }
+                else
+                {
+                    p101_call_result_8 = p101_strcmp(env, fact->value, "ERROR_CONTRACT");
+                    if(p101_call_result_8 == 0)
+                    {
+                        set_function_contract(env, model, fact, false);
+                    }
+                    else
+                    {
+                        p101_call_result_9 = p101_strcmp(env, fact->value, "ENV_USE");
+                        if(p101_call_result_9 == 0)
+                        {
+                            add_event(env, err, model, CONTRACT_EVENT_ENV_USE, fact);
+                        }
+                        else
+                        {
+                            p101_call_result_10 = p101_strcmp(env, fact->value, "ERROR_USE");
+                            if(p101_call_result_10 == 0)
+                            {
+                                add_event(env, err, model, CONTRACT_EVENT_ERROR_USE, fact);
+                            }
+                            else
+                            {
+                                p101_call_result_11 = p101_strcmp(env, fact->value, "TYPE_SEMANTIC_ROLE:p101:trace-scope");
+                                if(p101_call_result_11 == 0)
+                                {
+                                    add_event(env, err, model, CONTRACT_EVENT_TRACE_USE, fact);
+                                }
+                                else
+                                {
+                                    p101_call_result_12 = p101_strcmp(env, fact->value, "ERROR_CHECK");
+                                    if(p101_call_result_12 == 0)
+                                    {
+                                        add_event(env, err, model, CONTRACT_EVENT_ERROR_CHECK, fact);
+                                    }
+                                    else
+                                    {
+                                        p101_call_result_13 = p101_strcmp(env, fact->value, "ERROR_OPTIONAL");
+                                        if(p101_call_result_13 == 0)
+                                        {
+                                            add_event(env, err, model, CONTRACT_EVENT_ERROR_OPTIONAL, fact);
+                                        }
+                                        else
+                                        {
+                                            p101_call_result_14 = p101_strcmp(env, fact->value, "ERROR_DISCARD");
+                                            if(p101_call_result_14 == 0)
+                                            {
+                                                add_event(env, err, model, CONTRACT_EVENT_ERROR_DISCARD, fact);
+                                            }
+                                            else
+                                            {
+                                                p101_call_result_15 = p101_strcmp(env, fact->value, "ERROR_PROPAGATED");
+                                                if(p101_call_result_15 == 0)
+                                                {
+                                                    add_event(env, err, model, CONTRACT_EVENT_ERROR_PROPAGATED, fact);
+                                                }
+                                                else
+                                                {
+                                                    p101_call_result_16 = p101_strcmp(env, fact->value, "ERROR_UNCHECKED_CHAIN");
+                                                    if(p101_call_result_16 == 0)
+                                                    {
+                                                        add_event(env, err, model, CONTRACT_EVENT_ERROR_UNCHECKED_CHAIN, fact);
+                                                    }
+                                                    else
+                                                    {
+                                                        p101_call_result_17 = p101_strcmp(env, fact->value, "FUNCTION_RETURN");
+                                                        if(p101_call_result_17 == 0)
+                                                        {
+                                                            add_event(env, err, model, CONTRACT_EVENT_FUNCTION_RETURN, fact);
+                                                        }
+                                                        else
+                                                        {
+                                                            p101_call_result_18 = p101_strcmp(env, fact->value, "FUNCTION_EARLY_RETURN");
+                                                            if(p101_call_result_18 == 0)
+                                                            {
+                                                                add_event(env, err, model, CONTRACT_EVENT_FUNCTION_EARLY_RETURN, fact);
+                                                            }
+                                                            else
+                                                            {
+                                                                p101_call_result_19 = p101_strcmp(env, fact->value, "CALL_NOT_ISOLATED");
+                                                                if(p101_call_result_19 == 0)
+                                                                {
+                                                                    add_event(env, err, model, CONTRACT_EVENT_CALL_NOT_ISOLATED, fact);
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
             }
             break;
         default:
@@ -230,14 +330,34 @@ static void set_function_contract(const struct p101_env *env, struct contract_mo
 
 static bool fact_line_is_complete(const struct p101_env *env, struct p101_error *err, FILE *stream, char *line)
 {
-    bool   complete;
-    size_t length;
+    int         p101_expression_result_22;
+    const char *p101_call_result_23;
+    const char *p101_call_result_4;
+    char       *line_result;
+    bool        complete;
+    size_t      length;
 
     P101_TRACE_SCOPE(env);
     complete = true;
     length   = p101_strlen(env, line);
 
-    if(length != READ_BUF_LEN - 1U || p101_strchr(env, line, '\n') != NULL)
+    if(length != READ_BUF_LEN - 1U)
+    {
+        p101_expression_result_22 = 1;
+    }
+    else
+    {
+        p101_call_result_23 = p101_strchr(env, line, '\n');
+        if(p101_call_result_23 != NULL)
+        {
+            p101_expression_result_22 = 1;
+        }
+        else
+        {
+            p101_expression_result_22 = 0;
+        }
+    }
+    if(p101_expression_result_22)
     {
         goto done;
     }
@@ -246,9 +366,15 @@ static bool fact_line_is_complete(const struct p101_env *env, struct p101_error 
         char discard[READ_BUF_LEN];
 
         complete = false;
-        while(p101_fgets(env, err, discard, sizeof(discard), stream) != NULL)
+        for(;;)
         {
-            if(p101_strchr(env, discard, '\n') != NULL)
+            line_result = p101_fgets(env, err, discard, sizeof(discard), stream);
+            if(line_result == NULL)
+            {
+                break;
+            }
+            p101_call_result_4 = p101_strchr(env, discard, '\n');
+            if(p101_call_result_4 != NULL)
             {
                 break;
             }

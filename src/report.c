@@ -71,8 +71,10 @@ void p101_error_contract_report_end(const struct p101_env *env, struct p101_erro
 
 static void json_string(const struct p101_env *env, struct p101_error *err, const char *text)
 {
+    int p101_call_result_1;
     P101_TRACE_SCOPE(env);
-    if(p101_record_write_json_string(stdout, text == NULL ? "" : text) != 0)
+    p101_call_result_1 = p101_record_write_json_string(stdout, text == NULL ? "" : text);
+    if(p101_call_result_1 != 0)
     {
         P101_ERROR_RAISE_ERRNO(err, errno == 0 ? EIO : errno);
     }

@@ -17,7 +17,11 @@ void p101_error_contract_arguments_init(const struct p101_env *env, struct argum
 
 void p101_error_contract_parse_arguments(const struct p101_env *env, struct p101_error *err, int argc, char *argv[], struct arguments *args)
 {
-    int opt;
+    bool no_error;
+    int  p101_expression_result_2;
+    int  p101_call_result_3;
+    int  p101_call_result_1;
+    int  opt;
 #ifdef P101_ERROR_CONTRACT_TESTING
     const char *forced_option;
 #endif
@@ -28,20 +32,44 @@ void p101_error_contract_parse_arguments(const struct p101_env *env, struct p101
     forced_option = getenv("P101_ERROR_CONTRACT_TEST_OPTION");
 #endif
 
-    if(argc == 2 && p101_strcmp(env, argv[1], "--help") == 0)
+    p101_expression_result_2 = 0;
+    if(argc == 2)
+    {
+        p101_call_result_3 = p101_strcmp(env, argv[1], "--help");
+        if(p101_call_result_3 == 0)
+        {
+            p101_expression_result_2 = 1;
+        }
+    }
+    if(p101_expression_result_2)
     {
         args->show_help = true;
-        return;
+        goto done;
     }
 
-    while(
-#ifdef P101_ERROR_CONTRACT_TESTING
-        (opt = (forced_option == NULL) ? p101_getopt(env, argc, argv, ":hjqSvi:C:") : (unsigned char)*forced_option) != -1 &&
-#else
-        (opt = p101_getopt(env, argc, argv, ":hjqSvi:C:")) != -1 &&
-#endif
-        p101_error_has_no_error(err))
+    for(;;)
     {
+#ifdef P101_ERROR_CONTRACT_TESTING
+        if(forced_option == NULL)
+        {
+            opt = p101_getopt(env, argc, argv, ":hjqSvi:C:");
+        }
+        else
+        {
+            opt = (unsigned char)*forced_option;
+        }
+#else
+        opt = p101_getopt(env, argc, argv, ":hjqSvi:C:");
+#endif
+        if(opt == -1)
+        {
+            break;
+        }
+        no_error = p101_error_has_no_error(err);
+        if(!no_error)
+        {
+            break;
+        }
 #ifdef P101_ERROR_CONTRACT_TESTING
         forced_option = NULL;
 #endif
@@ -94,7 +122,8 @@ void p101_error_contract_parse_arguments(const struct p101_env *env, struct p101
             {
                 char msg[MSG_LEN];
 
-                if(p101_isprint(env, optopt))
+                p101_call_result_1 = p101_isprint(env, optopt);
+                if(p101_call_result_1)
                 {
                     p101_snprintf(env, err, msg, sizeof(msg), "Unknown option '-%c'.", optopt);
                 }
@@ -109,8 +138,18 @@ void p101_error_contract_parse_arguments(const struct p101_env *env, struct p101
             default:
             {
                 char msg[MSG_LEN];
+                int  option_character;
 
-                p101_snprintf(env, err, msg, sizeof(msg), "Internal error: unhandled option '-%c' returned by getopt.", p101_isprint(env, opt) ? opt : '?');
+                p101_call_result_1 = p101_isprint(env, opt);
+                if(p101_call_result_1)
+                {
+                    option_character = opt;
+                }
+                else
+                {
+                    option_character = '?';
+                }
+                p101_snprintf(env, err, msg, sizeof(msg), "Internal error: unhandled option '-%c' returned by getopt.", option_character);
                 P101_ERROR_RAISE_USER(err, msg, ERR_USAGE);
                 break;
             }
@@ -126,6 +165,9 @@ void p101_error_contract_parse_arguments(const struct p101_env *env, struct p101
     {
         P101_ERROR_RAISE_USER(err, "Too many paths.", ERR_USAGE);
     }
+
+done:
+    return;
 }
 
 void p101_error_contract_check_arguments(const struct p101_env *env, struct p101_error *err, const struct arguments *args)

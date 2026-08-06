@@ -30,6 +30,7 @@ set(main_OUTPUT_NAME p101-error-contract)
 set(main_SOURCES
         src/cli.c
         src/contract.c
+        src/contract_event.c
         src/contract_builder.c
         src/contract_model.c
         src/main.c

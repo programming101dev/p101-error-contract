@@ -56,6 +56,7 @@ p101_add_test(test_contract_model
         test_contract_model.c
         ../src/cli.c
         ../src/contract.c
+        ../src/contract_event.c
         ../src/contract_builder.c
         ../src/contract_model.c
         ../src/native_analysis.c
@@ -65,6 +66,7 @@ target_compile_definitions(test_contract_model PRIVATE P101_ERROR_CONTRACT_TESTI
 add_executable(p101_error_contract_coverage_cli
         ../src/cli.c
         ../src/contract.c
+        ../src/contract_event.c
         ../src/contract_builder.c
         ../src/contract_model.c
         ../src/main.c

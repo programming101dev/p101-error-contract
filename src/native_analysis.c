@@ -12,6 +12,11 @@ static bool note_kind(const struct p101_env *env, const char *name, enum contrac
 
 void p101_error_contract_load_analysis(const struct p101_env *env, struct p101_error *err, const struct arguments *args, struct contract_model *model)
 {
+    int                            p101_expression_result_13;
+    bool                           p101_call_result_14;
+    bool                           p101_call_result_1;
+    bool                           p101_call_result_2;
+    bool                           p101_call_result_3;
     static const char              default_path[] = DEFAULT_SOURCE_PATH;
     const char                    *paths[P101_ERROR_CONTRACT_MAX_PATHS];
     size_t                         path_count;
@@ -33,14 +38,24 @@ void p101_error_contract_load_analysis(const struct p101_env *env, struct p101_e
             paths[index] = args->paths[index];
         }
     }
-    compile_db = args->compile_db_path;
-    if(compile_db == NULL && p101_c_facts_find_clang_compile_database(env, err, ".", discovered_compile_db, sizeof(discovered_compile_db)))
+    compile_db                = args->compile_db_path;
+    p101_expression_result_13 = 0;
+    if(compile_db == NULL)
+    {
+        p101_call_result_14 = p101_c_facts_find_clang_compile_database(env, err, ".", discovered_compile_db, sizeof(discovered_compile_db));
+        if(p101_call_result_14)
+        {
+            p101_expression_result_13 = 1;
+        }
+    }
+    if(p101_expression_result_13)
     {
         compile_db = discovered_compile_db;
     }
-    if(p101_error_has_error(err))
+    p101_call_result_1 = p101_error_has_error(err);
+    if(p101_call_result_1)
     {
-        return;
+        goto done;
     }
     p101_memset(env, &options, 0, sizeof(options));
     options.compile_database                     = compile_db;
@@ -54,14 +69,21 @@ void p101_error_contract_load_analysis(const struct p101_env *env, struct p101_e
     {
         p101_fprintf(env, err, stderr, "p101-error-contract: native lib_c_facts scan (%zu path%s%s)\n", path_count, path_count == 1U ? "" : "s", compile_db == NULL ? "" : ", compile database active");
     }
-    if(p101_error_has_no_error(err))
+    p101_call_result_2 = p101_error_has_no_error(err);
+    if(p101_call_result_2)
     {
-        (void)p101_c_analysis_scan(env, err, &options, apply_record, model);
+        p101_call_result_3 = p101_c_analysis_scan(env, err, &options, apply_record, model);
+        (void)p101_call_result_3;
     }
+
+done:
+    return;
 }
 
 static bool apply_record(const struct p101_env *env, struct p101_error *err, const struct p101_c_analysis_record *record, void *context)
 {
+    bool                   p101_call_result_4;
+    bool                   p101_call_result_5;
     struct contract_model *model;
 
     P101_TRACE_SCOPE(env);
@@ -76,7 +98,8 @@ static bool apply_record(const struct p101_env *env, struct p101_error *err, con
     }
     else if(record->kind == P101_C_ANALYSIS_CALL)
     {
-        if(p101_error_contract_is_process_termination_call(env, record->usr))
+        p101_call_result_4 = p101_error_contract_is_process_termination_call(env, record->usr);
+        if(p101_call_result_4)
         {
             p101_contract_model_add_event(env,
                                           err,
@@ -121,45 +144,70 @@ static bool apply_record(const struct p101_env *env, struct p101_error *err, con
     {
         P101_ERROR_RAISE_USER(err, record->name == NULL ? "lib_c_facts could not parse an admitted source file." : record->name, ERR_USAGE);
     }
-    return p101_error_has_no_error(err);
+    p101_call_result_5 = p101_error_has_no_error(err);
+    return p101_call_result_5;
 }
 
 static void apply_note(const struct p101_env *env, struct p101_error *err, struct contract_model *model, const struct p101_c_analysis_record *record)
 {
+    bool                         p101_call_result_12;
+    int                          p101_call_result_11;
+    int                          p101_call_result_10;
+    bool                         p101_call_result_9;
+    int                          p101_call_result_6;
     enum contract_event_kind     kind;
     enum contract_ownership_kind ownership;
 
-    if(p101_strcmp(env, record->name, "SEMANTIC_ROLE:p101:termination-adapter") == 0)
+    p101_call_result_6 = p101_strcmp(env, record->name, "SEMANTIC_ROLE:p101:termination-adapter");
+    if(p101_call_result_6 == 0)
     {
         p101_contract_model_set_termination_adapter(env, model, record->path, record->caller_usr);
     }
-    else if(p101_contract_ownership_kind_from_role(env, record->name, &ownership))
+    else
     {
-        p101_contract_model_record_ownership(env, err, model, record->path, record->line, ownership);
-    }
-    else if(p101_strcmp(env, record->name, "ENV_CONTRACT") == 0)
-    {
-        p101_contract_model_set_contract(env, model, record->path, record->caller_usr, true);
-    }
-    else if(p101_strcmp(env, record->name, "ERROR_CONTRACT") == 0)
-    {
-        p101_contract_model_set_contract(env, model, record->path, record->caller_usr, false);
-    }
-    else if(note_kind(env, record->name, &kind))
-    {
-        size_t event_start;
-
-        event_start = record->start_offset;
-        if((kind == CONTRACT_EVENT_FUNCTION_RETURN || kind == CONTRACT_EVENT_FUNCTION_EARLY_RETURN) && event_start == 0U)
+        p101_call_result_9 = p101_contract_ownership_kind_from_role(env, record->name, &ownership);
+        if(p101_call_result_9)
         {
-            event_start = record->column;
+            p101_contract_model_record_ownership(env, err, model, record->path, record->line, ownership);
         }
-        p101_contract_model_add_event(env, err, model, kind, record->path, record->name, record->caller, record->usr, record->caller_usr, record->line, event_start, record->end_offset, false, false, "Too many events in native analysis.");
+        else
+        {
+            p101_call_result_10 = p101_strcmp(env, record->name, "ENV_CONTRACT");
+            if(p101_call_result_10 == 0)
+            {
+                p101_contract_model_set_contract(env, model, record->path, record->caller_usr, true);
+            }
+            else
+            {
+                p101_call_result_11 = p101_strcmp(env, record->name, "ERROR_CONTRACT");
+                if(p101_call_result_11 == 0)
+                {
+                    p101_contract_model_set_contract(env, model, record->path, record->caller_usr, false);
+                }
+                else
+                {
+                    p101_call_result_12 = note_kind(env, record->name, &kind);
+                    if(p101_call_result_12)
+                    {
+                        size_t event_start;
+
+                        event_start = record->start_offset;
+                        if((kind == CONTRACT_EVENT_FUNCTION_RETURN || kind == CONTRACT_EVENT_FUNCTION_EARLY_RETURN) && event_start == 0U)
+                        {
+                            event_start = record->column;
+                        }
+                        p101_contract_model_add_event(env, err, model, kind, record->path, record->name, record->caller, record->usr, record->caller_usr, record->line, event_start, record->end_offset, false, false, "Too many events in native analysis.");
+                    }
+                }
+            }
+        }
     }
 }
 
 static bool note_kind(const struct p101_env *env, const char *name, enum contract_event_kind *kind)
 {
+    int p101_call_result_7;
+
     static const struct
     {
         const char              *name;
@@ -183,7 +231,8 @@ static bool note_kind(const struct p101_env *env, const char *name, enum contrac
     found = false;
     for(size_t index = 0U; index < sizeof(mappings) / sizeof(mappings[0]) && !found; index++)
     {
-        if(p101_strcmp(env, name, mappings[index].name) == 0)
+        p101_call_result_7 = p101_strcmp(env, name, mappings[index].name);
+        if(p101_call_result_7 == 0)
         {
             *kind = mappings[index].kind;
             found = true;
@@ -194,6 +243,7 @@ static bool note_kind(const struct p101_env *env, const char *name, enum contrac
 
 bool p101_error_contract_is_process_termination_call(const struct p101_env *env, const char *usr)
 {
+    int                      p101_call_result_8;
     static const char *const termination_function_usrs[] = {
         "c:@F@_Exit",
         "c:@F@_exit",
@@ -210,7 +260,8 @@ bool p101_error_contract_is_process_termination_call(const struct p101_env *env,
     found = false;
     for(size_t index = 0U; usr != NULL && index < sizeof(termination_function_usrs) / sizeof(termination_function_usrs[0]) && !found; index++)
     {
-        if(p101_strcmp(env, usr, termination_function_usrs[index]) == 0)
+        p101_call_result_8 = p101_strcmp(env, usr, termination_function_usrs[index]);
+        if(p101_call_result_8 == 0)
         {
             found = true;
         }
