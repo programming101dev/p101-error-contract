@@ -72,12 +72,11 @@ done:
 
 static void analyze_ownership(const struct p101_env *env, struct p101_error *err, const struct contract_model *model, struct contract_report *report)
 {
-    bool no_error;
-
     P101_TRACE_SCOPE(env);
     for(size_t i = 0U; i < model->ownership_file_count; i++)
     {
         const struct contract_ownership_file *owner;
+        bool                                  no_error;
 
         no_error = p101_error_has_no_error(err);
         if(!no_error)
@@ -118,7 +117,6 @@ static void analyze_model(const struct p101_env *env, struct p101_error *err, co
     bool   p101_call_result_28;
     size_t p101_call_result_10;
     bool   p101_call_result_5;
-    bool   no_error;
     P101_TRACE_SCOPE(env);
     for(size_t i = 0U; i < model->function_count; i++)
     {
@@ -126,6 +124,7 @@ static void analyze_model(const struct p101_env *env, struct p101_error *err, co
         size_t                   end_line;
         size_t                   second_exit_line;
         size_t                   early_return_line;
+        bool                     no_error;
 
         no_error = p101_error_has_no_error(err);
         if(!no_error)
@@ -309,7 +308,6 @@ static void analyze_model(const struct p101_env *env, struct p101_error *err, co
 
 static size_t function_early_return_line(const struct p101_env *env, const struct contract_model *model, const struct contract_function *function, size_t end_line)
 {
-    int    p101_expression_result_29;
     bool   p101_call_result_30;
     size_t line;
 
@@ -318,6 +316,7 @@ static size_t function_early_return_line(const struct p101_env *env, const struc
     for(size_t index = 0U; index < model->event_count; index++)
     {
         const struct contract_event *event;
+        int                          p101_expression_result_29;
 
         event                     = &model->events[index];
         p101_expression_result_29 = 0;
@@ -389,10 +388,6 @@ static size_t function_exit_count(const struct p101_env *env, const struct contr
 
 static bool exit_event_is_duplicate(const struct p101_env *env, const struct contract_model *model, size_t event_index)
 {
-    int                          p101_expression_result_34;
-    int                          p101_expression_result_35;
-    int                          p101_expression_result_36;
-    int                          p101_expression_result_37;
     int                          p101_call_result_38;
     int                          p101_call_result_39;
     const struct contract_event *event;
@@ -404,6 +399,10 @@ static bool exit_event_is_duplicate(const struct p101_env *env, const struct con
     for(size_t index = 0U; index < event_index; index++)
     {
         const struct contract_event *candidate;
+        int                          p101_expression_result_34;
+        int                          p101_expression_result_35;
+        int                          p101_expression_result_36;
+        int                          p101_expression_result_37;
 
         candidate                 = &model->events[index];
         p101_expression_result_37 = 0;
@@ -483,7 +482,6 @@ static size_t next_function_line(const struct p101_env *env, const struct contra
 static bool event_is_in_function(const struct p101_env *env, const struct contract_event *event, const struct contract_function *function, size_t end_line)
 {
     int  p101_call_result_7;
-    int  p101_call_result_8;
     bool result;
 
     P101_TRACE_SCOPE(env);
@@ -491,6 +489,8 @@ static bool event_is_in_function(const struct p101_env *env, const struct contra
     result             = p101_call_result_7 == 0;
     if(result && event->caller_usr[0] != '\0')
     {
+        int p101_call_result_8;
+
         p101_call_result_8 = p101_strcmp(env, event->caller_usr, function->usr);
         result             = p101_call_result_8 == 0;
     }
@@ -507,8 +507,6 @@ static bool event_is_in_function(const struct p101_env *env, const struct contra
 
 static bool visible_env_before_event(const struct p101_env *env, const struct contract_model *model, const struct contract_function *function, const struct contract_event *event, size_t end_line)
 {
-    int  p101_expression_result_40;
-    int  p101_expression_result_41;
     bool p101_call_result_42;
     bool p101_call_result_43;
     bool visible;
@@ -518,6 +516,8 @@ static bool visible_env_before_event(const struct p101_env *env, const struct co
     for(size_t i = 0U; i < model->event_count && !visible; i++)
     {
         const struct contract_event *candidate;
+        int                          p101_expression_result_40;
+        int                          p101_expression_result_41;
 
         candidate                 = &model->events[i];
         p101_expression_result_41 = 0;
@@ -549,8 +549,6 @@ static bool visible_env_before_event(const struct p101_env *env, const struct co
 
 static bool visible_error_before_event(const struct p101_env *env, const struct contract_model *model, const struct contract_function *function, const struct contract_event *event, size_t end_line)
 {
-    int  p101_expression_result_44;
-    int  p101_expression_result_45;
     bool p101_call_result_46;
     bool p101_call_result_47;
     bool visible;
@@ -560,6 +558,8 @@ static bool visible_error_before_event(const struct p101_env *env, const struct 
     for(size_t i = 0U; i < model->event_count && !visible; i++)
     {
         const struct contract_event *candidate;
+        int                          p101_expression_result_44;
+        int                          p101_expression_result_45;
 
         candidate                 = &model->events[i];
         p101_expression_result_45 = 0;

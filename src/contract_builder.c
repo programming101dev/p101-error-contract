@@ -7,8 +7,6 @@ static bool identity_fits(const struct p101_env *env, const char *identity);
 
 bool p101_contract_ownership_kind_from_role(const struct p101_env *env, const char *role, enum contract_ownership_kind *kind)
 {
-    int p101_call_result_1;
-
     static const struct
     {
         const char                  *role;
@@ -25,6 +23,8 @@ bool p101_contract_ownership_kind_from_role(const struct p101_env *env, const ch
     found = false;
     for(size_t index = 0U; index < sizeof(mappings) / sizeof(mappings[0]) && !found; index++)
     {
+        int p101_call_result_1;
+
         p101_call_result_1 = p101_strcmp(env, role, mappings[index].role);
         if(p101_call_result_1 == 0)
         {
@@ -195,14 +195,14 @@ void p101_contract_model_set_contract(const struct p101_env *env, struct contrac
 
 void p101_contract_model_set_termination_adapter(const struct p101_env *env, struct contract_model *model, const char *path, const char *function_usr)
 {
-    int p101_expression_result_12;
-    int p101_expression_result_13;
-    int p101_expression_result_14;
     int p101_call_result_15;
     int p101_call_result_16;
     P101_TRACE_SCOPE(env);
     for(size_t index = 0U; index < model->function_count; index++)
     {
+        int                       p101_expression_result_12;
+        int                       p101_expression_result_13;
+        int                       p101_expression_result_14;
         struct contract_function *function;
 
         function                  = &model->functions[index];
@@ -242,12 +242,13 @@ void p101_contract_model_set_termination_adapter(const struct p101_env *env, str
 
 void p101_contract_model_record_ownership(const struct p101_env *env, struct p101_error *err, struct contract_model *model, const char *path, size_t line, enum contract_ownership_kind kind)
 {
-    int                             p101_call_result_3;
     struct contract_ownership_file *owner;
 
     owner = NULL;
     for(size_t index = 0U; index < model->ownership_file_count; index++)
     {
+        int p101_call_result_3;
+
         p101_call_result_3 = p101_strcmp(env, model->ownership_files[index].path, path);
         if(p101_call_result_3 == 0)
         {

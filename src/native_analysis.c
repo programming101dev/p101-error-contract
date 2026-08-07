@@ -82,7 +82,6 @@ done:
 
 static bool apply_record(const struct p101_env *env, struct p101_error *err, const struct p101_c_analysis_record *record, void *context)
 {
-    bool                   p101_call_result_4;
     bool                   p101_call_result_5;
     struct contract_model *model;
 
@@ -98,6 +97,8 @@ static bool apply_record(const struct p101_env *env, struct p101_error *err, con
     }
     else if(record->kind == P101_C_ANALYSIS_CALL)
     {
+        bool p101_call_result_4;
+
         p101_call_result_4 = p101_error_contract_is_process_termination_call(env, record->usr);
         if(p101_call_result_4)
         {
@@ -150,10 +151,6 @@ static bool apply_record(const struct p101_env *env, struct p101_error *err, con
 
 static void apply_note(const struct p101_env *env, struct p101_error *err, struct contract_model *model, const struct p101_c_analysis_record *record)
 {
-    bool                         p101_call_result_12;
-    int                          p101_call_result_11;
-    int                          p101_call_result_10;
-    bool                         p101_call_result_9;
     int                          p101_call_result_6;
     enum contract_event_kind     kind;
     enum contract_ownership_kind ownership;
@@ -165,6 +162,8 @@ static void apply_note(const struct p101_env *env, struct p101_error *err, struc
     }
     else
     {
+        bool p101_call_result_9;
+
         p101_call_result_9 = p101_contract_ownership_kind_from_role(env, record->name, &ownership);
         if(p101_call_result_9)
         {
@@ -172,6 +171,8 @@ static void apply_note(const struct p101_env *env, struct p101_error *err, struc
         }
         else
         {
+            int p101_call_result_10;
+
             p101_call_result_10 = p101_strcmp(env, record->name, "ENV_CONTRACT");
             if(p101_call_result_10 == 0)
             {
@@ -179,6 +180,8 @@ static void apply_note(const struct p101_env *env, struct p101_error *err, struc
             }
             else
             {
+                int p101_call_result_11;
+
                 p101_call_result_11 = p101_strcmp(env, record->name, "ERROR_CONTRACT");
                 if(p101_call_result_11 == 0)
                 {
@@ -186,6 +189,8 @@ static void apply_note(const struct p101_env *env, struct p101_error *err, struc
                 }
                 else
                 {
+                    bool p101_call_result_12;
+
                     p101_call_result_12 = note_kind(env, record->name, &kind);
                     if(p101_call_result_12)
                     {
@@ -206,8 +211,6 @@ static void apply_note(const struct p101_env *env, struct p101_error *err, struc
 
 static bool note_kind(const struct p101_env *env, const char *name, enum contract_event_kind *kind)
 {
-    int p101_call_result_7;
-
     static const struct
     {
         const char              *name;
@@ -231,6 +234,8 @@ static bool note_kind(const struct p101_env *env, const char *name, enum contrac
     found = false;
     for(size_t index = 0U; index < sizeof(mappings) / sizeof(mappings[0]) && !found; index++)
     {
+        int p101_call_result_7;
+
         p101_call_result_7 = p101_strcmp(env, name, mappings[index].name);
         if(p101_call_result_7 == 0)
         {
@@ -243,7 +248,6 @@ static bool note_kind(const struct p101_env *env, const char *name, enum contrac
 
 bool p101_error_contract_is_process_termination_call(const struct p101_env *env, const char *usr)
 {
-    int                      p101_call_result_8;
     static const char *const termination_function_usrs[] = {
         "c:@F@_Exit",
         "c:@F@_exit",
@@ -260,6 +264,8 @@ bool p101_error_contract_is_process_termination_call(const struct p101_env *env,
     found = false;
     for(size_t index = 0U; usr != NULL && index < sizeof(termination_function_usrs) / sizeof(termination_function_usrs[0]) && !found; index++)
     {
+        int p101_call_result_8;
+
         p101_call_result_8 = p101_strcmp(env, usr, termination_function_usrs[index]);
         if(p101_call_result_8 == 0)
         {

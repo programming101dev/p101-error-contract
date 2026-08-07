@@ -15,11 +15,6 @@ static bool fact_line_is_complete(const struct p101_env *env, struct p101_error 
 
 void p101_error_contract_load_facts(const struct p101_env *env, struct p101_error *err, const struct arguments *args, struct contract_model *model)
 {
-    int   p101_expression_result_20;
-    bool  p101_call_result_21;
-    bool  p101_call_result_1;
-    bool  p101_call_result_2;
-    char *line_result;
     P101_TRACE_SCOPE(env);
     if(args->facts_path == NULL)
     {
@@ -27,6 +22,8 @@ void p101_error_contract_load_facts(const struct p101_env *env, struct p101_erro
     }
     else
     {
+        int    p101_expression_result_20;
+        bool   p101_call_result_21;
         FILE  *stream;
         char   line[READ_BUF_LEN];
         size_t fact_count;
@@ -36,6 +33,9 @@ void p101_error_contract_load_facts(const struct p101_env *env, struct p101_erro
 
         for(;;)
         {
+            const char *line_result;
+            bool        p101_call_result_1;
+
             if(stream == NULL)
             {
                 break;
@@ -68,6 +68,8 @@ void p101_error_contract_load_facts(const struct p101_env *env, struct p101_erro
 
         if(stream != NULL)
         {
+            bool p101_call_result_2;
+
             p101_call_result_2 = p101_error_has_error(err);
             if(p101_call_result_2)
             {
@@ -96,22 +98,7 @@ void p101_error_contract_load_facts(const struct p101_env *env, struct p101_erro
 
 static void apply_fact(const struct p101_env *env, struct p101_error *err, struct contract_model *model, const struct p101_c_fact *fact)
 {
-    int  p101_call_result_14;
-    int  p101_call_result_15;
-    int  p101_call_result_16;
-    int  p101_call_result_17;
-    int  p101_call_result_18;
-    int  p101_call_result_19;
-    int  p101_call_result_13;
-    int  p101_call_result_12;
-    int  p101_call_result_11;
-    int  p101_call_result_10;
-    int  p101_call_result_9;
-    int  p101_call_result_8;
-    bool p101_call_result_5;
-    bool p101_call_result_6;
-    int  p101_call_result_7;
-    int  p101_call_result_3;
+    int p101_call_result_3;
     P101_TRACE_SCOPE(env);
 
 #ifdef __clang__
@@ -139,6 +126,8 @@ static void apply_fact(const struct p101_env *env, struct p101_error *err, struc
             break;
         case P101_C_FACT_KIND_CALL:
         {
+            bool p101_call_result_5;
+
             p101_call_result_5 = p101_error_contract_is_process_termination_call(env, fact->usr);
             if(p101_call_result_5)
             {
@@ -152,6 +141,8 @@ static void apply_fact(const struct p101_env *env, struct p101_error *err, struc
         break;
         case P101_C_FACT_KIND_NOTE:
         {
+            bool p101_call_result_6;
+
             p101_call_result_6 = record_ownership_role(env, err, model, fact);
             if(p101_call_result_6)
             {
@@ -165,6 +156,8 @@ static void apply_fact(const struct p101_env *env, struct p101_error *err, struc
             }
             else
             {
+                int p101_call_result_7;
+
                 p101_call_result_7 = p101_strcmp(env, fact->value, "ENV_CONTRACT");
                 if(p101_call_result_7 == 0)
                 {
@@ -172,6 +165,8 @@ static void apply_fact(const struct p101_env *env, struct p101_error *err, struc
                 }
                 else
                 {
+                    int p101_call_result_8;
+
                     p101_call_result_8 = p101_strcmp(env, fact->value, "ERROR_CONTRACT");
                     if(p101_call_result_8 == 0)
                     {
@@ -179,6 +174,8 @@ static void apply_fact(const struct p101_env *env, struct p101_error *err, struc
                     }
                     else
                     {
+                        int p101_call_result_9;
+
                         p101_call_result_9 = p101_strcmp(env, fact->value, "ENV_USE");
                         if(p101_call_result_9 == 0)
                         {
@@ -186,6 +183,8 @@ static void apply_fact(const struct p101_env *env, struct p101_error *err, struc
                         }
                         else
                         {
+                            int p101_call_result_10;
+
                             p101_call_result_10 = p101_strcmp(env, fact->value, "ERROR_USE");
                             if(p101_call_result_10 == 0)
                             {
@@ -193,6 +192,8 @@ static void apply_fact(const struct p101_env *env, struct p101_error *err, struc
                             }
                             else
                             {
+                                int p101_call_result_11;
+
                                 p101_call_result_11 = p101_strcmp(env, fact->value, "TYPE_SEMANTIC_ROLE:p101:trace-scope");
                                 if(p101_call_result_11 == 0)
                                 {
@@ -200,6 +201,8 @@ static void apply_fact(const struct p101_env *env, struct p101_error *err, struc
                                 }
                                 else
                                 {
+                                    int p101_call_result_12;
+
                                     p101_call_result_12 = p101_strcmp(env, fact->value, "ERROR_CHECK");
                                     if(p101_call_result_12 == 0)
                                     {
@@ -207,6 +210,8 @@ static void apply_fact(const struct p101_env *env, struct p101_error *err, struc
                                     }
                                     else
                                     {
+                                        int p101_call_result_13;
+
                                         p101_call_result_13 = p101_strcmp(env, fact->value, "ERROR_OPTIONAL");
                                         if(p101_call_result_13 == 0)
                                         {
@@ -214,6 +219,8 @@ static void apply_fact(const struct p101_env *env, struct p101_error *err, struc
                                         }
                                         else
                                         {
+                                            int p101_call_result_14;
+
                                             p101_call_result_14 = p101_strcmp(env, fact->value, "ERROR_DISCARD");
                                             if(p101_call_result_14 == 0)
                                             {
@@ -221,6 +228,8 @@ static void apply_fact(const struct p101_env *env, struct p101_error *err, struc
                                             }
                                             else
                                             {
+                                                int p101_call_result_15;
+
                                                 p101_call_result_15 = p101_strcmp(env, fact->value, "ERROR_PROPAGATED");
                                                 if(p101_call_result_15 == 0)
                                                 {
@@ -228,6 +237,8 @@ static void apply_fact(const struct p101_env *env, struct p101_error *err, struc
                                                 }
                                                 else
                                                 {
+                                                    int p101_call_result_16;
+
                                                     p101_call_result_16 = p101_strcmp(env, fact->value, "ERROR_UNCHECKED_CHAIN");
                                                     if(p101_call_result_16 == 0)
                                                     {
@@ -235,6 +246,8 @@ static void apply_fact(const struct p101_env *env, struct p101_error *err, struc
                                                     }
                                                     else
                                                     {
+                                                        int p101_call_result_17;
+
                                                         p101_call_result_17 = p101_strcmp(env, fact->value, "FUNCTION_RETURN");
                                                         if(p101_call_result_17 == 0)
                                                         {
@@ -242,6 +255,8 @@ static void apply_fact(const struct p101_env *env, struct p101_error *err, struc
                                                         }
                                                         else
                                                         {
+                                                            int p101_call_result_18;
+
                                                             p101_call_result_18 = p101_strcmp(env, fact->value, "FUNCTION_EARLY_RETURN");
                                                             if(p101_call_result_18 == 0)
                                                             {
@@ -249,6 +264,8 @@ static void apply_fact(const struct p101_env *env, struct p101_error *err, struc
                                                             }
                                                             else
                                                             {
+                                                                int p101_call_result_19;
+
                                                                 p101_call_result_19 = p101_strcmp(env, fact->value, "CALL_NOT_ISOLATED");
                                                                 if(p101_call_result_19 == 0)
                                                                 {
@@ -333,7 +350,7 @@ static bool fact_line_is_complete(const struct p101_env *env, struct p101_error 
     int         p101_expression_result_22;
     const char *p101_call_result_23;
     const char *p101_call_result_4;
-    char       *line_result;
+    const char *line_result;
     bool        complete;
     size_t      length;
 
