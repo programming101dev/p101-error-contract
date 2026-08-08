@@ -1,14 +1,15 @@
 #include "native_analysis.h"
 #include "contract_builder.h"
+#include "contract_event.h"
 #include "errors.h"
 #include <p101_c/p101_stdio.h>
 #include <p101_c/p101_string.h>
 #include <p101_c_facts/analysis.h>
+#include <p101_c_facts/facts.h>
 #include <p101_c_facts/project.h>
 
 static bool apply_record(const struct p101_env *env, struct p101_error *err, const struct p101_c_analysis_record *record, void *context);
 static void apply_note(const struct p101_env *env, struct p101_error *err, struct contract_model *model, const struct p101_c_analysis_record *record);
-static bool note_kind(const struct p101_env *env, const char *name, enum contract_event_kind *kind);
 
 void p101_error_contract_load_analysis(const struct p101_env *env, struct p101_error *err, const struct arguments *args, struct contract_model *model)
 {
@@ -151,12 +152,12 @@ static bool apply_record(const struct p101_env *env, struct p101_error *err, con
 
 static void apply_note(const struct p101_env *env, struct p101_error *err, struct contract_model *model, const struct p101_c_analysis_record *record)
 {
-    int                          p101_call_result_6;
+    enum p101_c_note_kind        note;
     enum contract_event_kind     kind;
     enum contract_ownership_kind ownership;
 
-    p101_call_result_6 = p101_strcmp(env, record->name, "SEMANTIC_ROLE:p101:termination-adapter");
-    if(p101_call_result_6 == 0)
+    note = p101_c_note_kind_from_name(env, record->name);
+    if(note == P101_C_NOTE_TERMINATION_ADAPTER)
     {
         p101_contract_model_set_termination_adapter(env, model, record->path, record->caller_usr);
     }
@@ -171,79 +172,33 @@ static void apply_note(const struct p101_env *env, struct p101_error *err, struc
         }
         else
         {
-            int p101_call_result_10;
-
-            p101_call_result_10 = p101_strcmp(env, record->name, "ENV_CONTRACT");
-            if(p101_call_result_10 == 0)
+            if(note == P101_C_NOTE_ENV_CONTRACT)
             {
                 p101_contract_model_set_contract(env, model, record->path, record->caller_usr, true);
             }
+            else if(note == P101_C_NOTE_ERROR_CONTRACT)
+            {
+                p101_contract_model_set_contract(env, model, record->path, record->caller_usr, false);
+            }
             else
             {
-                int p101_call_result_11;
+                bool p101_call_result_12;
 
-                p101_call_result_11 = p101_strcmp(env, record->name, "ERROR_CONTRACT");
-                if(p101_call_result_11 == 0)
+                p101_call_result_12 = p101_contract_event_kind_from_note(note, &kind);
+                if(p101_call_result_12)
                 {
-                    p101_contract_model_set_contract(env, model, record->path, record->caller_usr, false);
-                }
-                else
-                {
-                    bool p101_call_result_12;
+                    size_t event_start;
 
-                    p101_call_result_12 = note_kind(env, record->name, &kind);
-                    if(p101_call_result_12)
+                    event_start = record->start_offset;
+                    if((kind == CONTRACT_EVENT_FUNCTION_RETURN || kind == CONTRACT_EVENT_FUNCTION_EARLY_RETURN) && event_start == 0U)
                     {
-                        size_t event_start;
-
-                        event_start = record->start_offset;
-                        if((kind == CONTRACT_EVENT_FUNCTION_RETURN || kind == CONTRACT_EVENT_FUNCTION_EARLY_RETURN) && event_start == 0U)
-                        {
-                            event_start = record->column;
-                        }
-                        p101_contract_model_add_event(env, err, model, kind, record->path, record->name, record->caller, record->usr, record->caller_usr, record->line, event_start, record->end_offset, false, false, "Too many events in native analysis.");
+                        event_start = record->column;
                     }
+                    p101_contract_model_add_event(env, err, model, kind, record->path, record->name, record->caller, record->usr, record->caller_usr, record->line, event_start, record->end_offset, false, false, "Too many events in native analysis.");
                 }
             }
         }
     }
-}
-
-static bool note_kind(const struct p101_env *env, const char *name, enum contract_event_kind *kind)
-{
-    static const struct
-    {
-        const char              *name;
-        enum contract_event_kind kind;
-    } mappings[] = {
-        {"ENV_USE",                             CONTRACT_EVENT_ENV_USE              },
-        {"ERROR_USE",                           CONTRACT_EVENT_ERROR_USE            },
-        {"TYPE_SEMANTIC_ROLE:p101:trace-scope", CONTRACT_EVENT_TRACE_USE            },
-        {"ERROR_CHECK",                         CONTRACT_EVENT_ERROR_CHECK          },
-        {"ERROR_OPTIONAL",                      CONTRACT_EVENT_ERROR_OPTIONAL       },
-        {"ERROR_DISCARD",                       CONTRACT_EVENT_ERROR_DISCARD        },
-        {"ERROR_PROPAGATED",                    CONTRACT_EVENT_ERROR_PROPAGATED     },
-        {"ERROR_UNCHECKED_CHAIN",               CONTRACT_EVENT_ERROR_UNCHECKED_CHAIN},
-        {"FUNCTION_RETURN",                     CONTRACT_EVENT_FUNCTION_RETURN      },
-        {"FUNCTION_EARLY_RETURN",               CONTRACT_EVENT_FUNCTION_EARLY_RETURN},
-        {"CALL_NOT_ISOLATED",                   CONTRACT_EVENT_CALL_NOT_ISOLATED    },
-    };
-
-    bool found;
-
-    found = false;
-    for(size_t index = 0U; index < sizeof(mappings) / sizeof(mappings[0]) && !found; index++)
-    {
-        int p101_call_result_7;
-
-        p101_call_result_7 = p101_strcmp(env, name, mappings[index].name);
-        if(p101_call_result_7 == 0)
-        {
-            *kind = mappings[index].kind;
-            found = true;
-        }
-    }
-    return found;
 }
 
 bool p101_error_contract_is_process_termination_call(const struct p101_env *env, const char *usr)

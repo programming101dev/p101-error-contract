@@ -1,37 +1,60 @@
 #include "contract_builder.h"
 #include "errors.h"
 #include <p101_c/p101_string.h>
+#include <p101_c_facts/facts.h>
 
 static void copy_text(const struct p101_env *env, char *dst, size_t dst_size, const char *src);
 static bool identity_fits(const struct p101_env *env, const char *identity);
 
 bool p101_contract_ownership_kind_from_role(const struct p101_env *env, const char *role, enum contract_ownership_kind *kind)
 {
-    static const struct
+    enum p101_c_note_kind p101_call_result_1;
+    bool                  found;
+
+    p101_call_result_1 = p101_c_note_kind_from_name(env, role);
+    found              = true;
+#ifdef __clang__
+    #pragma clang diagnostic push
+    #pragma clang diagnostic ignored "-Wcovered-switch-default"
+#endif
+    switch(p101_call_result_1)
     {
-        const char                  *role;
-        enum contract_ownership_kind kind;
-    } mappings[] = {
-        {"CALLEE_SEMANTIC_ROLE:p101:ownership:error:acquire", CONTRACT_OWNERSHIP_ERROR_ACQUIRE},
-        {"CALLEE_SEMANTIC_ROLE:p101:ownership:error:release", CONTRACT_OWNERSHIP_ERROR_RELEASE},
-        {"CALLEE_SEMANTIC_ROLE:p101:ownership:env:acquire",   CONTRACT_OWNERSHIP_ENV_ACQUIRE  },
-        {"CALLEE_SEMANTIC_ROLE:p101:ownership:env:release",   CONTRACT_OWNERSHIP_ENV_RELEASE  },
-    };
-
-    bool found;
-
-    found = false;
-    for(size_t index = 0U; index < sizeof(mappings) / sizeof(mappings[0]) && !found; index++)
-    {
-        int p101_call_result_1;
-
-        p101_call_result_1 = p101_strcmp(env, role, mappings[index].role);
-        if(p101_call_result_1 == 0)
-        {
-            *kind = mappings[index].kind;
-            found = true;
-        }
+        case P101_C_NOTE_OWNERSHIP_ERROR_ACQUIRE:
+            *kind = CONTRACT_OWNERSHIP_ERROR_ACQUIRE;
+            break;
+        case P101_C_NOTE_OWNERSHIP_ERROR_RELEASE:
+            *kind = CONTRACT_OWNERSHIP_ERROR_RELEASE;
+            break;
+        case P101_C_NOTE_OWNERSHIP_ENV_ACQUIRE:
+            *kind = CONTRACT_OWNERSHIP_ENV_ACQUIRE;
+            break;
+        case P101_C_NOTE_OWNERSHIP_ENV_RELEASE:
+            *kind = CONTRACT_OWNERSHIP_ENV_RELEASE;
+            break;
+        case P101_C_NOTE_OTHER:
+        case P101_C_NOTE_ENV_CONTRACT:
+        case P101_C_NOTE_ERROR_CONTRACT:
+        case P101_C_NOTE_ENV_USE:
+        case P101_C_NOTE_ERROR_USE:
+        case P101_C_NOTE_TRACE_USE:
+        case P101_C_NOTE_ERROR_CHECK:
+        case P101_C_NOTE_ERROR_OPTIONAL:
+        case P101_C_NOTE_ERROR_DISCARD:
+        case P101_C_NOTE_ERROR_PROPAGATED:
+        case P101_C_NOTE_ERROR_UNCHECKED_CHAIN:
+        case P101_C_NOTE_FUNCTION_RETURN:
+        case P101_C_NOTE_FUNCTION_EARLY_RETURN:
+        case P101_C_NOTE_CALL_NOT_ISOLATED:
+        case P101_C_NOTE_CALL_RESULT_DISCARDED:
+        case P101_C_NOTE_TERMINATION_ADAPTER:
+        default:
+            found = false;
+            break;
     }
+#ifdef __clang__
+    #pragma clang diagnostic pop
+#endif
+
     return found;
 }
 

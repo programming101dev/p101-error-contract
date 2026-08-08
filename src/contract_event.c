@@ -38,3 +38,67 @@ bool p101_contract_event_is_not_after(const struct contract_event *candidate, co
     }
     return ordered;
 }
+
+bool p101_contract_event_kind_from_note(enum p101_c_note_kind note, enum contract_event_kind *kind)
+{
+    bool found;
+
+    found = true;
+#ifdef __clang__
+    #pragma clang diagnostic push
+    #pragma clang diagnostic ignored "-Wcovered-switch-default"
+#endif
+    switch(note)
+    {
+        case P101_C_NOTE_ENV_USE:
+            *kind = CONTRACT_EVENT_ENV_USE;
+            break;
+        case P101_C_NOTE_ERROR_USE:
+            *kind = CONTRACT_EVENT_ERROR_USE;
+            break;
+        case P101_C_NOTE_TRACE_USE:
+            *kind = CONTRACT_EVENT_TRACE_USE;
+            break;
+        case P101_C_NOTE_ERROR_CHECK:
+            *kind = CONTRACT_EVENT_ERROR_CHECK;
+            break;
+        case P101_C_NOTE_ERROR_OPTIONAL:
+            *kind = CONTRACT_EVENT_ERROR_OPTIONAL;
+            break;
+        case P101_C_NOTE_ERROR_DISCARD:
+            *kind = CONTRACT_EVENT_ERROR_DISCARD;
+            break;
+        case P101_C_NOTE_ERROR_PROPAGATED:
+            *kind = CONTRACT_EVENT_ERROR_PROPAGATED;
+            break;
+        case P101_C_NOTE_ERROR_UNCHECKED_CHAIN:
+            *kind = CONTRACT_EVENT_ERROR_UNCHECKED_CHAIN;
+            break;
+        case P101_C_NOTE_FUNCTION_RETURN:
+            *kind = CONTRACT_EVENT_FUNCTION_RETURN;
+            break;
+        case P101_C_NOTE_FUNCTION_EARLY_RETURN:
+            *kind = CONTRACT_EVENT_FUNCTION_EARLY_RETURN;
+            break;
+        case P101_C_NOTE_CALL_NOT_ISOLATED:
+            *kind = CONTRACT_EVENT_CALL_NOT_ISOLATED;
+            break;
+        case P101_C_NOTE_OTHER:
+        case P101_C_NOTE_ENV_CONTRACT:
+        case P101_C_NOTE_ERROR_CONTRACT:
+        case P101_C_NOTE_CALL_RESULT_DISCARDED:
+        case P101_C_NOTE_TERMINATION_ADAPTER:
+        case P101_C_NOTE_OWNERSHIP_ERROR_ACQUIRE:
+        case P101_C_NOTE_OWNERSHIP_ERROR_RELEASE:
+        case P101_C_NOTE_OWNERSHIP_ENV_ACQUIRE:
+        case P101_C_NOTE_OWNERSHIP_ENV_RELEASE:
+        default:
+            found = false;
+            break;
+    }
+#ifdef __clang__
+    #pragma clang diagnostic pop
+#endif
+
+    return found;
+}
